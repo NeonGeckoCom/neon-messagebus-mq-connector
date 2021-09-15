@@ -101,7 +101,7 @@ class ChatAPIProxy(MQConnector):
                             properties: pika.spec.BasicProperties,
                             body: bytes):
         """
-            Handles requests from MQ to Neon Chat API
+            Handles requests from MQ to Neon Chat API received on queue "neon_api_request"
 
             :param channel: MQ channel object (pika.channel.Channel)
             :param method: MQ return method (pika.spec.Basic.Return)
@@ -117,11 +117,11 @@ class ChatAPIProxy(MQConnector):
             if message_id:
                 self.bus.emit(Message(msg_type='klat.shout',
                                       data=dict(sid=message_id,
-                                                nick='pyklatchat_user',
+                                                nick=dict_data.get('nick', 'pyklatchat_user'),
                                                 cid=dict_data.get('cid'),
                                                 time=dict_data.get('timeCreated'),
                                                 title='Klatchat User Shout',
-                                                text=dict_data.get('messageText', '').strip().capitalize()),
+                                                text=dict_data.get('messageText', '').strip()),
                                       context=dict(neon_should_respond=True)))
 
         else:

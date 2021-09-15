@@ -25,11 +25,7 @@ from config import Configuration
 from chat_api_mq_proxy import ChatAPIProxy
 
 
-def main(config: Optional[dict] = None, testing=False):
-    daemon = False
-    if testing:
-        # Set some testing parameters here
-        daemon = True
+def main(config: Optional[dict] = None, daemon=False):
     connector = ChatAPIProxy(config=config, service_name='chat_api_proxy')
     connector.run_consumers(daemon=daemon)
 
