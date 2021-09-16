@@ -26,6 +26,7 @@ from chat_api_mq_proxy import ChatAPIProxy
 
 
 def main(config: Optional[dict] = None, daemon=False):
+
     connector = ChatAPIProxy(config=config, service_name='chat_api_proxy')
     connector.run_consumers(daemon=daemon)
 
