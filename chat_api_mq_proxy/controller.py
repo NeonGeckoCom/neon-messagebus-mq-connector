@@ -24,6 +24,8 @@ from neon_utils.socket_utils import b64_to_dict, dict_to_b64
 from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
 
+from messages import templates
+
 
 class ChatAPIProxy(MQConnector):
     """Proxy module for establishing connection between PyKlatchat and neon chat api"""
@@ -92,6 +94,32 @@ class ChatAPIProxy(MQConnector):
                                          )
         connection_channel.close()
         mq_connection.close()
+
+    def validate_request(self, message: dict):
+        def check_keys_presence(message, message_template, parent_name = "message"):
+            for key in message_template.keys():
+                #Presence
+                if key not in message:
+                    return KeyError(f"No {key} provided in {parent_name}")
+                #Type
+                child_template = message_template[key]
+                chield_message = message[key]
+                template_type = type(child_template)
+                chield_type = type(chield_message)
+                if not isinstance(chield_message, template_type):
+                    return TypeError(f"{key} in {parent_name} type should be {template_type}, but {chield_type} provided")
+                #Recurent call
+                if chield_type is dict:
+                    child_name = f"{parent_name}.{key}"
+                    check_error = check_keys_presence(chield_message, child_template, child_name)
+                    if check_error is not None:
+                        return check_error
+
+        if not "msg_type" in message:
+            return KeyError("No msg_type provided in message")
+        message_template = templates[message["msg_type"]]
+        check_error = check_keys_presence(message, message_template)
+        return check_error
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
