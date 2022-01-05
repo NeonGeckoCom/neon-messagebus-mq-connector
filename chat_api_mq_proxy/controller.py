@@ -23,6 +23,7 @@ from neon_utils import LOG
 from neon_utils.socket_utils import b64_to_dict, dict_to_b64
 from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
+from pydantic import ValidationError
 
 from messages import templates
 
@@ -96,34 +97,24 @@ class ChatAPIProxy(MQConnector):
         mq_connection.close()
 
     def validate_request(self, message: dict):
-        def check_keys_presence(message, message_template, parent_name = "message"):
-            for key in message_template.keys():
-                #Presence
-                if key not in message:
-                    return KeyError(f"No {key} provided in {parent_name}")
-                #Type
-                child_template = message_template[key]
-                chield_message = message[key]
-                template_type = type(child_template)
-                chield_type = type(chield_message)
-                if not isinstance(chield_message, template_type):
-                    return TypeError(f"{key} in {parent_name} type should be {template_type}, but {chield_type} provided")
-                #Recurent call
-                if chield_type is dict:
-                    child_name = f"{parent_name}.{key}"
-                    check_error = check_keys_presence(chield_message, child_template, child_name)
-                    if check_error is not None:
-                        return check_error
+        def check_keys_presence(message, message_template):
+            try:
+                pydantic_message = message_template(**message)
+            except (ValueError, ValidationError) as err:
+                return err, message
+            dict_message = pydantic_message.dict()
+            return None, dict_message
+            
         try:
             msg_type = message["msg_type"]
         except KeyError:
-            return KeyError("No msg_type provided in message")
+            return KeyError("No msg_type provided in message"), message
         try:
             message_template = templates[msg_type]
         except KeyError:
-            return None
-        check_error = check_keys_presence(message, message_template)
-        return check_error
+            return None, message
+        check_error, message = check_keys_presence(message, message_template)
+        return check_error, message
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
@@ -142,7 +133,7 @@ class ChatAPIProxy(MQConnector):
         if body and isinstance(body, bytes):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
-            check_error = self.validate_request(dict_data)
+            check_error, dict_data = self.validate_request(dict_data)
             if check_error is not None:
                 response = Message(msg_type="klat.proxy",
                                     data=dict(error=str(check_error)))
