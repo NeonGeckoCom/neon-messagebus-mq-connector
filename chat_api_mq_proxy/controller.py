@@ -143,17 +143,10 @@ class ChatAPIProxy(MQConnector):
                 response = Message(msg_type="klat.proxy",
                                     data=dict(error=str(check_error)))
                 self.handle_neon_message(response)
-            message_id = dict_data.get('messageID', None)
 
-            if message_id:
-                self.bus.emit(Message(msg_type='klat.shout',
-                                      data=dict(sid=message_id,
-                                                nick=dict_data.get('nick', 'pyklatchat_user'),
-                                                cid=dict_data.get('cid'),
-                                                time=dict_data.get('timeCreated'),
-                                                title='Klatchat User Shout',
-                                                text=dict_data.get('messageText', '').strip()),
-                                      context=dict(neon_should_respond=True)))
+            self.bus.emit(Message(msg_type=dict_data.msg_type,
+                                  data=dict_data.data,
+                                  context=dict_data.context))
 
         else:
             raise TypeError(f'Invalid body received, expected: bytes string; got: {type(body)}')
