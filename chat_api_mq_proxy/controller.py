@@ -114,10 +114,14 @@ class ChatAPIProxy(MQConnector):
                     check_error = check_keys_presence(chield_message, child_template, child_name)
                     if check_error is not None:
                         return check_error
-
-        if not "msg_type" in message:
+        try:
+            msg_type = message["msg_type"]
+        except KeyError:
             return KeyError("No msg_type provided in message")
-        message_template = templates[message["msg_type"]]
+        try:
+            message_template = templates[msg_type]
+        except KeyError:
+            return None
         check_error = check_keys_presence(message, message_template)
         return check_error
 
