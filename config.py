@@ -19,17 +19,12 @@
 
 import os
 import json
-import copy
 
 from typing import List
 from neon_utils import LOG
 
-from utils.database.db_controller import DatabaseController
-
 
 class Configuration:
-
-    db_controllers = dict()
 
     def __init__(self, from_files: List[str]):
         self._config_data = dict()
