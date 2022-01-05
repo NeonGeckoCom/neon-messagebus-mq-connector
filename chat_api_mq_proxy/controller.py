@@ -138,6 +138,11 @@ class ChatAPIProxy(MQConnector):
         if body and isinstance(body, bytes):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
+            check_error = self.validate_request(dict_data)
+            if check_error is not None:
+                response = Message(msg_type="klat.proxy",
+                                    data=dict(error=str(check_error)))
+                self.handle_neon_message(response)
             message_id = dict_data.get('messageID', None)
 
             if message_id:
