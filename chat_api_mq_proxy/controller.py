@@ -146,9 +146,7 @@ class ChatAPIProxy(MQConnector):
                                     data=dict(error=str(check_error)))
                 self.handle_neon_message(response)
 
-            self.bus.emit(Message(msg_type=dict_data.msg_type,
-                                  data=dict_data.data,
-                                  context=dict_data.context))
+            self.bus.emit(Message(**dict_data))
 
         else:
             raise TypeError(f'Invalid body received, expected: bytes string; got: {type(body)}')
