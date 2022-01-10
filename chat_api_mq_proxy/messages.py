@@ -42,7 +42,7 @@
 from pydantic import BaseModel, create_model
 
 
-class STT(BaseModel):
+class STTMessage(BaseModel):
     msg_type: str
     data: create_model("Data",
         audio_file = (str, ...),
@@ -53,5 +53,5 @@ class STT(BaseModel):
 
 
 templates = {
-    "recognizer_loop:utterance": STT,
+    "recognizer_loop:utterance": STTMessage,
 }

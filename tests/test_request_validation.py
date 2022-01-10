@@ -45,7 +45,7 @@ from pydantic import ValidationError
 import os, sys
 sys.path.append(os.path.abspath(os.path.dirname(os.path.realpath(__file__))+"/../chat_api_mq_proxy"))
 
-from messages import STT
+from messages import STTMessage
 
 
 class RequestTests(unittest.TestCase):
@@ -65,7 +65,7 @@ class RequestTests(unittest.TestCase):
         dict_keys = self.default_stt_keys.copy()
 
         try:
-            STT(**dict_keys)
+            STTMessage(**dict_keys)
         except (ValidationError, ValueError) as err:
             self.fail(err)
 
@@ -75,4 +75,4 @@ class RequestTests(unittest.TestCase):
         del dict_keys["data"]["audio_file"]
 
         with self.assertRaises(ValueError):
-            STT(**dict_keys)
+            STTMessage(**dict_keys)
