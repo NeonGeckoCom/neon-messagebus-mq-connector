@@ -38,6 +38,12 @@ class ChatAPIProxy(MQConnector):
         self.bus_config = config['MESSAGEBUS']
         self._bus = None
         self.connect_bus()
+        self.register_consumer(name=f'neon_api_request_{self.service_id}',
+                               vhost=self.vhost,
+                               queue=f'neon_api_request_{self.service_id}',
+                               callback=self.handle_user_message,
+                               on_error=self.default_error_handler,
+                               auto_ack=False)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_api_request',
