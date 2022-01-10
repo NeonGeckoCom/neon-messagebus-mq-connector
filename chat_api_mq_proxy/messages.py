@@ -50,7 +50,7 @@ class BaseModel(PydanticBaseModel):
 
 
 class STTMessage(BaseModel):
-    msg_type: str
+    msg_type: str = "recognizer_loop:utterance"
     data: create_model("Data",
         audio_file = (str, ...),
         lang = (str, ...),
@@ -64,7 +64,7 @@ class STTMessage(BaseModel):
 
 
 class TTSMessage(BaseModel):
-    msg_type: str
+    msg_type: str = "recognizer_loop:utterance"
     data: create_model("Data",
         utterances = (List[str], ...),
         lang = (str, ...),
