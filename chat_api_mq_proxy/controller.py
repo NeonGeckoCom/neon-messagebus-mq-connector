@@ -96,25 +96,25 @@ class ChatAPIProxy(MQConnector):
         connection_channel.close()
         mq_connection.close()
 
-    def validate_request(self, message: dict):
-        def check_keys_presence(message, message_template):
+    def validate_request(self, dict_data: dict):
+        def check_keys_presence(dict_data, message_template):
             try:
-                pydantic_message = message_template(**message)
+                pydantic_message = message_template(**dict_data)
             except (ValueError, ValidationError) as err:
-                return err, message
+                return err, dict_data
             dict_message = pydantic_message.dict()
             return None, dict_message
             
         try:
-            msg_type = message["msg_type"]
+            msg_type = dict_data["msg_type"]
         except KeyError:
-            return KeyError("No msg_type provided in message"), message
+            return KeyError("No msg_type provided in message"), dict_data
         try:
             message_template = templates[msg_type]
         except KeyError:
-            return None, message
-        check_error, message = check_keys_presence(message, message_template)
-        return check_error, message
+            return None, dict_data
+        check_error, dict_data = check_keys_presence(dict_data, message_template)
+        return check_error, dict_data
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
