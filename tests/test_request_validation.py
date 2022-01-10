@@ -40,6 +40,7 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+from copy import deepcopy
 from pydantic import ValidationError
 
 import os, sys
@@ -82,7 +83,7 @@ class RequestTests(unittest.TestCase):
 
     def test_stt_proper(self):
         "Proper stt request structure"
-        dict_keys = self.default_stt_keys.copy()
+        dict_keys = deepcopy(self.default_stt_keys)
 
         try:
             STTMessage(**dict_keys)
@@ -91,7 +92,7 @@ class RequestTests(unittest.TestCase):
 
     def test_stt_missing(self):
         "Missing fields in stt request structure"
-        dict_keys = self.default_stt_keys.copy()
+        dict_keys = deepcopy(self.default_stt_keys)
         del dict_keys["data"]["audio_file"]
 
         with self.assertRaises(ValueError):
@@ -99,7 +100,7 @@ class RequestTests(unittest.TestCase):
 
     def test_tts_proper(self):
         "Proper tts request structure"
-        dict_keys = self.default_tts_keys.copy()
+        dict_keys = deepcopy(self.default_tts_keys)
 
         try:
             TTSMessage(**dict_keys)
@@ -108,7 +109,7 @@ class RequestTests(unittest.TestCase):
 
     def test_stt_proper_missing(self):
         "Missing fields in tts request structure"
-        dict_keys = self.default_tts_keys.copy()
+        dict_keys = deepcopy(self.default_tts_keys)
         del dict_keys["context"]["ident"]
 
         with self.assertRaises(ValidationError):
