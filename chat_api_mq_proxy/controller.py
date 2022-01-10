@@ -97,6 +97,13 @@ class ChatAPIProxy(MQConnector):
         mq_connection.close()
 
     def validate_request(self, dict_data: dict):
+        """
+            Validate dict_data dictionary structure by using tamplate 
+
+            :param dict_data: request for validation
+            :return: validation details(None if validation passed),
+                     input data with proper data types and filled default fields
+        """
         def check_keys_presence(dict_data, message_template):
             try:
                 pydantic_message = message_template(**dict_data)
