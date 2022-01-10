@@ -79,7 +79,7 @@ class ChatAPIProxy(MQConnector):
             self.connect_bus()
         return self._bus
 
-    def handle_neon_message(self, message: Message):
+    def handle_neon_message(self, message: Message, routing_key: str = 'neon_api_response'):
         """
             Handles responses from Neon Chat API
 
@@ -91,16 +91,10 @@ class ChatAPIProxy(MQConnector):
         else:
             body = {'data': {'msg': 'Failed to get response from Neon'}}
         LOG.info(f'Received neon response body: {body}')
-        mq_connection = self.create_mq_connection(vhost=self.vhost)
-        connection_channel = mq_connection.channel()
-        connection_channel.queue_declare(queue='neon_api_response')
-        connection_channel.basic_publish(exchange='',
-                                         routing_key='neon_api_response',
-                                         body=dict_to_b64(body),
-                                         properties=pika.BasicProperties(expiration='1000')
-                                         )
-        connection_channel.close()
-        mq_connection.close()
+        with self.create_mq_connection(vhost=self.vhost) as mq_connection:
+            self.emit_mq_message(connection = mq_connection,
+                                    request_data = body,
+                                    queue = routing_key)
 
     def validate_request(self, dict_data: dict):
         """
@@ -149,10 +143,10 @@ class ChatAPIProxy(MQConnector):
             check_error, dict_data = self.validate_request(dict_data)
             if check_error is not None:
                 response = Message(msg_type="klat.proxy",
-                                    data=dict(error=str(check_error)))
-                self.handle_neon_message(response)
-
-            self.bus.emit(Message(**dict_data))
-
+                                    data=dict(error=str(check_error),
+                                              message = dict_data))
+                self.handle_neon_message(response, "neon_api_error")
+            else:
+                self.bus.emit(Message(**dict_data))
         else:
             raise TypeError(f'Invalid body received, expected: bytes string; got: {type(body)}')
