@@ -39,6 +39,7 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from typing import List
 from pydantic import BaseModel, create_model
 
 
@@ -52,6 +53,27 @@ class STTMessage(BaseModel):
     )
 
 
+class TTSMessage(BaseModel):
+    msg_type: str
+    data: create_model("Data",
+        utterances = (List[str], ...),
+        lang = (str, ...)
+    )
+    context: create_model("Context",
+        client_name = (str, "pyklatchat"),
+        client = (str, "browser"),
+        source = (str, "mq_api"),
+        destination = (str, "skills"),
+        ident = (str, ...),
+        timing = (dict, {}),
+        neon_should_respond = (bool, True),
+        username = (str, ...),
+        klat_data = (dict, {}),
+        nick_profiles = (dict, {})
+    )
+
+
 templates = {
     "recognizer_loop:utterance": STTMessage,
+    "ttsMessage": TTSMessage,
 }
