@@ -114,3 +114,13 @@ class RequestTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             TTSMessage(**dict_keys)
+
+    def test_tts_optional(self):
+        "Optional fields fillment in tts request"
+        dict_keys = deepcopy(self.default_tts_keys)
+        del dict_keys["context"]["neon_should_respond"]
+        pydantic_message = TTSMessage(**dict_keys)
+        dict_keys = pydantic_message.dict()
+
+        self.assertEqual(dict_keys["context"]["neon_should_respond"],True)
+        self.assertEqual(dict_keys["context"]["destination"],"1")
