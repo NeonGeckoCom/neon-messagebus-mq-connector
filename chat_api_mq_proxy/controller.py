@@ -104,23 +104,23 @@ class ChatAPIProxy(MQConnector):
             :return: validation details(None if validation passed),
                      input data with proper data types and filled default fields
         """
-        def check_keys_presence(dict_data, message_template):
+        def check_keys_presence(dict_data, message_templates):
             try:
-                pydantic_message = message_template(**dict_data)
+                for message_template in message_templates:
+                    dict_data = message_template(**dict_data).dict()
             except (ValueError, ValidationError) as err:
                 return err, dict_data
-            dict_message = pydantic_message.dict()
-            return None, dict_message
+            return None, dict_data
             
         try:
-            request_type = dict_data["context"]["request_skills"]
+            request_types = dict_data["context"]["request_skills"]
         except KeyError:
-            request_type = None
+            request_types = None
         try:
-            message_template = templates[request_type]
+            message_templates = [templates[request_type] for request_type in request_types]
         except KeyError:
             return None, dict_data
-        check_error, dict_data = check_keys_presence(dict_data, message_template)
+        check_error, dict_data = check_keys_presence(dict_data, message_templates)
         return check_error, dict_data
 
     def handle_user_message(self,
