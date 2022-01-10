@@ -57,6 +57,7 @@ class STTMessage(BaseModel):
         __base__=BaseModel,
     )
     context: create_model("Context",
+        ident = (str, ...),
         request_type = (str, None),
         __base__=BaseModel,
     )
