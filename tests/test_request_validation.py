@@ -45,7 +45,7 @@ from pydantic import ValidationError
 import os, sys
 sys.path.append(os.path.abspath(os.path.dirname(os.path.realpath(__file__))+"/../chat_api_mq_proxy"))
 
-from messages import STTMessage
+from messages import STTMessage, TTSMessage
 
 
 class RequestTests(unittest.TestCase):
@@ -57,6 +57,26 @@ class RequestTests(unittest.TestCase):
                 lang = "1"
             ),
             context = dict(
+            )
+        )
+
+    default_tts_keys = dict(
+            msg_type = "recognizer_loop:utterance",
+            data = dict(
+                utterances = ["1"],
+                lang = "en-us"
+            ),
+            context = dict(
+                client_name = "1",
+                client = "1",
+                source = "1",
+                destination = "1",
+                ident = "1",
+                timing = {"1":"1"},
+                neon_should_respond = False,
+                username = "1",
+                klat_data = {"1":"1"},
+                nick_profiles = {"1":"1"}
             )
         )
 
@@ -76,3 +96,20 @@ class RequestTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             STTMessage(**dict_keys)
+
+    def test_tts_proper(self):
+        "Proper tts request structure"
+        dict_keys = self.default_tts_keys.copy()
+
+        try:
+            TTSMessage(**dict_keys)
+        except (ValidationError, ValueError) as err:
+            self.fail(err)
+
+    def test_stt_proper_missing(self):
+        "Missing fields in tts request structure"
+        dict_keys = self.default_tts_keys.copy()
+        del dict_keys["context"]["ident"]
+
+        with self.assertRaises(ValidationError):
+            TTSMessage(**dict_keys)
