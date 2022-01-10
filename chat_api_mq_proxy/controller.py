@@ -150,7 +150,3 @@ class ChatAPIProxy(MQConnector):
 
         else:
             raise TypeError(f'Invalid body received, expected: bytes string; got: {type(body)}')
-
-    def run(self, **kwargs):
-        """Generic method to run all the relevant submodules"""
-        super().run(run_consumers=True, run_sync=True)
