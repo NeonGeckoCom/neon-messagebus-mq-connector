@@ -25,7 +25,7 @@ from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
 from pydantic import ValidationError
 
-from messages import templates
+from .messages import templates
 
 
 class ChatAPIProxy(MQConnector):
