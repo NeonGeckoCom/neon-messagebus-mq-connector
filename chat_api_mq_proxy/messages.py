@@ -78,7 +78,7 @@ class TTSMessage(BaseModel):
         ident = (str, ...),
         timing = (dict, {}),
         neon_should_respond = (bool, True),
-        username = (str, ...),
+        username = (str, "guest"),
         klat_data = (dict, {}),
         nick_profiles = (dict, {}),
         request_type = (str, None),
