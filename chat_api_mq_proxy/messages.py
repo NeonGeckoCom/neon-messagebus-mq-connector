@@ -58,7 +58,7 @@ class STTMessage(BaseModel):
     )
     context: create_model("Context",
         ident = (str, ...),
-        request_type = (str, None),
+        request_skills = (List[str], None),
         __base__=BaseModel,
     )
 
@@ -81,7 +81,7 @@ class TTSMessage(BaseModel):
         username = (str, "guest"),
         klat_data = (dict, {}),
         nick_profiles = (dict, {}),
-        request_type = (str, None),
+        request_skills = (List[str], None),
         __base__=BaseModel,
     )
 

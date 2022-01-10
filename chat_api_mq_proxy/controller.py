@@ -113,7 +113,7 @@ class ChatAPIProxy(MQConnector):
             return None, dict_message
             
         try:
-            request_type = dict_data["context"]["request_type"]
+            request_type = dict_data["context"]["request_skills"]
         except KeyError:
             request_type = None
         try:
