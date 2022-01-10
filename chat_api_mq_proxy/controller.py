@@ -113,11 +113,11 @@ class ChatAPIProxy(MQConnector):
             return None, dict_message
             
         try:
-            msg_type = dict_data["msg_type"]
+            request_type = dict_data["context"]["request_type"]
         except KeyError:
-            return KeyError("No msg_type provided in message"), dict_data
+            request_type = None
         try:
-            message_template = templates[msg_type]
+            message_template = templates[request_type]
         except KeyError:
             return None, dict_data
         check_error, dict_data = check_keys_presence(dict_data, message_template)

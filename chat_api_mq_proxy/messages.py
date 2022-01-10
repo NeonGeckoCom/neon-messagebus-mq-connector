@@ -49,7 +49,8 @@ class STTMessage(BaseModel):
         audio_file = (str, ...),
         lang = (str, ...)
     )
-    context: create_model("Context"
+    context: create_model("Context",
+        request_type = (str, None),
     )
 
 
@@ -69,11 +70,12 @@ class TTSMessage(BaseModel):
         neon_should_respond = (bool, True),
         username = (str, ...),
         klat_data = (dict, {}),
-        nick_profiles = (dict, {})
+        nick_profiles = (dict, {}),
+        request_type = (str, None),
     )
 
 
 templates = {
-    "recognizer_loop:utterance": STTMessage,
-    "ttsMessage": TTSMessage,
+    "stt": STTMessage,
+    "tts": TTSMessage,
 }
