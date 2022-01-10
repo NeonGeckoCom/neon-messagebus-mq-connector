@@ -40,17 +40,25 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from typing import List
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel as PydanticBaseModel, \
+                     create_model
+
+
+class BaseModel(PydanticBaseModel):
+    class Config:
+        extra = "allow"
 
 
 class STTMessage(BaseModel):
     msg_type: str
     data: create_model("Data",
         audio_file = (str, ...),
-        lang = (str, ...)
+        lang = (str, ...),
+        __base__=BaseModel,
     )
     context: create_model("Context",
         request_type = (str, None),
+        __base__=BaseModel,
     )
 
 
@@ -58,7 +66,8 @@ class TTSMessage(BaseModel):
     msg_type: str
     data: create_model("Data",
         utterances = (List[str], ...),
-        lang = (str, ...)
+        lang = (str, ...),
+        __base__=BaseModel,
     )
     context: create_model("Context",
         client_name = (str, "pyklatchat"),
@@ -72,6 +81,7 @@ class TTSMessage(BaseModel):
         klat_data = (dict, {}),
         nick_profiles = (dict, {}),
         request_type = (str, None),
+        __base__=BaseModel,
     )
 
 
