@@ -60,7 +60,7 @@ class RequestTests(unittest.TestCase):
             )
         )
 
-    def test_001_stt(self):
+    def test_stt_proper(self):
         "Proper stt request structure"
         dict_keys = self.default_stt_keys.copy()
 
@@ -69,7 +69,7 @@ class RequestTests(unittest.TestCase):
         except (ValidationError, ValueError) as err:
             self.fail(err)
 
-    def test_002_stt(self):
+    def test_stt_missing(self):
         "Missing fields in stt request structure"
         dict_keys = self.default_stt_keys.copy()
         del dict_keys["data"]["audio_file"]
