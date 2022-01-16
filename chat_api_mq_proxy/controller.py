@@ -142,7 +142,7 @@ class ChatAPIProxy(MQConnector):
             LOG.info(f'Received user message: {dict_data}')
             check_error, dict_data = self.validate_request(dict_data)
             if check_error is not None:
-                response = Message(msg_type="klat.proxy",
+                response = Message(msg_type="klat.error",
                                     data=dict(error=str(check_error),
                                               message = dict_data))
                 self.handle_neon_message(response, "neon_chat_api_error")
