@@ -111,13 +111,12 @@ class ChatAPIProxy(MQConnector):
             except (ValueError, ValidationError) as err:
                 return err, dict_data
             return None, dict_data
-            
+
+        request_skills = dict_data["context"].get("request_skills",["default"])
+        if len(request_skills) == 0:
+            request_skills = ["default"]
         try:
-            request_types = dict_data["context"]["request_skills"]
-        except KeyError:
-            request_types = None
-        try:
-            message_templates = [templates[request_type] for request_type in request_types]
+            message_templates = [templates[request_type] for request_type in request_skills]
         except KeyError:
             return None, dict_data
         check_error, dict_data = check_keys_presence(dict_data, message_templates)
