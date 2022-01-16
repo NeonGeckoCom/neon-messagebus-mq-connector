@@ -40,13 +40,13 @@ class ChatAPIProxy(MQConnector):
         self.connect_bus()
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
                                vhost=self.vhost,
-                               queue=f'neon_api_request_{self.service_id}',
+                               queue=f'neon_chat_api_request_{self.service_id}',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
                                auto_ack=False)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
-                               queue='neon_api_request',
+                               queue='neon_chat_api_request',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
                                auto_ack=False)
@@ -79,7 +79,7 @@ class ChatAPIProxy(MQConnector):
             self.connect_bus()
         return self._bus
 
-    def handle_neon_message(self, message: Message, routing_key: str = 'neon_api_response'):
+    def handle_neon_message(self, message: Message, routing_key: str = 'neon_chat_api_response'):
         """
             Handles responses from Neon Chat API
 
@@ -129,7 +129,7 @@ class ChatAPIProxy(MQConnector):
                             properties: pika.spec.BasicProperties,
                             body: bytes):
         """
-            Handles requests from MQ to Neon Chat API received on queue "neon_api_request"
+            Handles requests from MQ to Neon Chat API received on queue "neon_chat_api_request"
 
             :param channel: MQ channel object (pika.channel.Channel)
             :param method: MQ return method (pika.spec.Basic.Return)
@@ -145,7 +145,7 @@ class ChatAPIProxy(MQConnector):
                 response = Message(msg_type="klat.proxy",
                                     data=dict(error=str(check_error),
                                               message = dict_data))
-                self.handle_neon_message(response, "neon_api_error")
+                self.handle_neon_message(response, "neon_chat_api_error")
             else:
                 self.bus.emit(Message(**dict_data))
         else:
