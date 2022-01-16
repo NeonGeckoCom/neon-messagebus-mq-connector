@@ -49,6 +49,24 @@ class BaseModel(PydanticBaseModel):
         extra = "allow"
 
 
+class AbstractMessage(BaseModel):
+    msg_type: str = "recognizer_loop:utterance"
+    context: create_model("Context",
+        client_name = (str, "pyklatchat"),
+        client = (str, "browser"),
+        source = (str, "mq_api"),
+        destination = (str, "skills"),
+        ident = (str, ...),
+        timing = (dict, {}),
+        neon_should_respond = (bool, True),
+        username = (str, "guest"),
+        klat_data = (dict, {'key': 'val'}),
+        nick_profiles = (dict, {}),
+        request_skills = (List[str], None),
+        __base__=BaseModel,
+    )
+
+
 class STTMessage(BaseModel):
     msg_type: str = "recognizer_loop:utterance"
     data: create_model("Data",
@@ -89,4 +107,5 @@ class TTSMessage(BaseModel):
 templates = {
     "stt": STTMessage,
     "tts": TTSMessage,
+    "default": AbstractMessage
 }
