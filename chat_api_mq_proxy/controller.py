@@ -99,6 +99,7 @@ class ChatAPIProxy(MQConnector):
     def validate_request(self, dict_data: dict):
         """
             Validate dict_data dictionary structure by using tamplate 
+            All templates are located in messages.py file
 
             :param dict_data: request for validation
             :return: validation details(None if validation passed),
