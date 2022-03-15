@@ -23,6 +23,9 @@ from neon_utils import LOG
 from neon_utils.socket_utils import b64_to_dict, dict_to_b64
 from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
+from pydantic import ValidationError
+
+from .messages import templates
 
 
 class ChatAPIProxy(MQConnector):
@@ -35,9 +38,15 @@ class ChatAPIProxy(MQConnector):
         self.bus_config = config['MESSAGEBUS']
         self._bus = None
         self.connect_bus()
+        self.register_consumer(name=f'neon_api_request_{self.service_id}',
+                               vhost=self.vhost,
+                               queue=f'neon_chat_api_request_{self.service_id}',
+                               callback=self.handle_user_message,
+                               on_error=self.default_error_handler,
+                               auto_ack=False)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
-                               queue='neon_api_request',
+                               queue='neon_chat_api_request',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
                                auto_ack=False)
@@ -70,7 +79,7 @@ class ChatAPIProxy(MQConnector):
             self.connect_bus()
         return self._bus
 
-    def handle_neon_message(self, message: Message):
+    def handle_neon_message(self, message: Message, routing_key: str = 'neon_chat_api_response'):
         """
             Handles responses from Neon Chat API
 
@@ -82,16 +91,37 @@ class ChatAPIProxy(MQConnector):
         else:
             body = {'data': {'msg': 'Failed to get response from Neon'}}
         LOG.info(f'Received neon response body: {body}')
-        mq_connection = self.create_mq_connection(vhost=self.vhost)
-        connection_channel = mq_connection.channel()
-        connection_channel.queue_declare(queue='neon_api_response')
-        connection_channel.basic_publish(exchange='',
-                                         routing_key='neon_api_response',
-                                         body=dict_to_b64(body),
-                                         properties=pika.BasicProperties(expiration='1000')
-                                         )
-        connection_channel.close()
-        mq_connection.close()
+        with self.create_mq_connection(vhost=self.vhost) as mq_connection:
+            self.emit_mq_message(connection = mq_connection,
+                                    request_data = body,
+                                    queue = routing_key)
+
+    def validate_request(self, dict_data: dict):
+        """
+            Validate dict_data dictionary structure by using tamplate 
+            All templates are located in messages.py file
+
+            :param dict_data: request for validation
+            :return: validation details(None if validation passed),
+                     input data with proper data types and filled default fields
+        """
+        def check_keys_presence(dict_data, message_templates):
+            try:
+                for message_template in message_templates:
+                    dict_data = message_template(**dict_data).dict()
+            except (ValueError, ValidationError) as err:
+                return err, dict_data
+            return None, dict_data
+
+        request_skills = dict_data["context"].get("request_skills",["default"])
+        if len(request_skills) == 0:
+            request_skills = ["default"]
+        try:
+            message_templates = [templates[request_type] for request_type in request_skills]
+        except KeyError:
+            return None, dict_data
+        check_error, dict_data = check_keys_presence(dict_data, message_templates)
+        return check_error, dict_data
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
@@ -99,7 +129,7 @@ class ChatAPIProxy(MQConnector):
                             properties: pika.spec.BasicProperties,
                             body: bytes):
         """
-            Handles requests from MQ to Neon Chat API received on queue "neon_api_request"
+            Handles requests from MQ to Neon Chat API received on queue "neon_chat_api_request"
 
             :param channel: MQ channel object (pika.channel.Channel)
             :param method: MQ return method (pika.spec.Basic.Return)
@@ -110,21 +140,13 @@ class ChatAPIProxy(MQConnector):
         if body and isinstance(body, bytes):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
-            message_id = dict_data.get('messageID', None)
-
-            if message_id:
-                self.bus.emit(Message(msg_type='klat.shout',
-                                      data=dict(sid=message_id,
-                                                nick=dict_data.get('nick', 'pyklatchat_user'),
-                                                cid=dict_data.get('cid'),
-                                                time=dict_data.get('timeCreated'),
-                                                title='Klatchat User Shout',
-                                                text=dict_data.get('messageText', '').strip()),
-                                      context=dict(neon_should_respond=True)))
-
+            check_error, dict_data = self.validate_request(dict_data)
+            if check_error is not None:
+                response = Message(msg_type="klat.error",
+                                    data=dict(error=str(check_error),
+                                              message = dict_data))
+                self.handle_neon_message(response, "neon_chat_api_error")
+            else:
+                self.bus.emit(Message(**dict_data))
         else:
             raise TypeError(f'Invalid body received, expected: bytes string; got: {type(body)}')
-
-    def run(self, **kwargs):
-        """Generic method to run all the relevant submodules"""
-        super().run(run_consumers=True, run_sync=True)

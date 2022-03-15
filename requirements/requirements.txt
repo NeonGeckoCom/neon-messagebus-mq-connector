@@ -1,1 +1,2 @@
 neon-utils~=0.14
+pydantic~=1.9
