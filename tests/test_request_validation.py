@@ -43,7 +43,8 @@ import unittest
 from copy import deepcopy
 from pydantic import ValidationError
 
-import os, sys
+import os
+import sys
 sys.path.append(os.path.abspath(os.path.dirname(os.path.realpath(__file__))+"/../neon_messagebus_mq_connector"))
 
 from messages import STTMessage, TTSMessage

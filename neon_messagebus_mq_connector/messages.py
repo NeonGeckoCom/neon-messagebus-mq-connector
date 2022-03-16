@@ -40,8 +40,7 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from typing import List
-from pydantic import BaseModel as PydanticBaseModel, \
-                     create_model
+from pydantic import BaseModel as PydanticBaseModel, create_model
 
 
 class BaseModel(PydanticBaseModel):
@@ -52,56 +51,58 @@ class BaseModel(PydanticBaseModel):
 class AbstractMessage(BaseModel):
     msg_type: str = "recognizer_loop:utterance"
     context: create_model("Context",
-        client_name = (str, "pyklatchat"),
-        client = (str, "browser"),
-        source = (str, "mq_api"),
-        destination = (str, "skills"),
-        ident = (str, ...),
-        timing = (dict, {}),
-        neon_should_respond = (bool, True),
-        username = (str, "guest"),
-        klat_data = (dict, {'key': 'val'}),
-        nick_profiles = (dict, {}),
-        request_skills = (List[str], None),
-        __base__=BaseModel,
-    )
+                          client_name=(str, "pyklatchat"),
+                          client=(str, "browser"),
+                          source=(str, "mq_api"),
+                          destination=(str, "skills"),
+                          ident=(str, ...),
+                          timing=(dict, {}),
+                          neon_should_respond=(bool, True),
+                          username=(str, "guest"),
+                          klat_data=(dict, {'key': 'val'}),
+                          mq=(dict, None),
+                          nick_profiles=(dict, {}),
+                          request_skills=(List[str], None),
+                          __base__=BaseModel,
+                          )
 
 
 class STTMessage(BaseModel):
     msg_type: str = "recognizer_loop:utterance"
     data: create_model("Data",
-        audio_file = (str, ...),
-        lang = (str, ...),
-        __base__=BaseModel,
-    )
+                       audio_file=(str, ...),
+                       lang=(str, ...),
+                       __base__=BaseModel,
+                       )
     context: create_model("Context",
-        ident = (str, ...),
-        request_skills = (List[str], None),
-        __base__=BaseModel,
-    )
+                          ident=(str, ...),
+                          request_skills=(List[str], None),
+                          __base__=BaseModel,
+                          )
 
 
 class TTSMessage(BaseModel):
     msg_type: str = "recognizer_loop:utterance"
     data: create_model("Data",
-        utterances = (List[str], ...),
-        lang = (str, ...),
-        __base__=BaseModel,
-    )
+                       utterances=(List[str], ...),
+                       lang=(str, ...),
+                       __base__=BaseModel,
+                       )
     context: create_model("Context",
-        client_name = (str, "pyklatchat"),
-        client = (str, "browser"),
-        source = (str, "mq_api"),
-        destination = (str, "skills"),
-        ident = (str, ...),
-        timing = (dict, {}),
-        neon_should_respond = (bool, True),
-        username = (str, "guest"),
-        klat_data = (dict, {'key': 'val'}),
-        nick_profiles = (dict, {}),
-        request_skills = (List[str], None),
-        __base__=BaseModel,
-    )
+                          client_name=(str, "pyklatchat"),
+                          client=(str, "browser"),
+                          source=(str, "mq_api"),
+                          destination=(str, "skills"),
+                          ident=(str, ...),
+                          timing=(dict, {}),
+                          neon_should_respond=(bool, True),
+                          username=(str, "guest"),
+                          klat_data=(dict, {'key': 'val'}),
+                          nick_profiles=(dict, {}),
+                          user_profiles=(list, []),
+                          request_skills=(List[str], None),
+                          __base__=BaseModel,
+                          )
 
 
 templates = {
