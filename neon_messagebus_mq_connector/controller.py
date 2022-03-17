@@ -67,6 +67,7 @@ class ChatAPIProxy(MQConnector):
     def register_bus_handlers(self):
         """Convenience method to gather message bus handlers"""
         self._bus.on('klat.response', self.handle_neon_message)
+        self._bus.on('complete.intent.failure', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -103,10 +104,11 @@ class ChatAPIProxy(MQConnector):
         :param routing_key: Queue to post response to
         """
 
-        if len(list(message.data)) > 0:
-            body = {'data': message.data, 'context': message.context}
-        else:
-            body = {'data': {'msg': 'Failed to get response from Neon'}}
+        if not message.data:
+            message.data['msg'] = 'Failed to get response from Neon'
+
+        body = {'msg_type': message.msg_type,
+                'data': message.data, 'context': message.context}
         LOG.debug(f'Received neon response body: {body}')
         routing_key = routing_key or \
             message.context.get("klat", {}).get("routing_key") or \
