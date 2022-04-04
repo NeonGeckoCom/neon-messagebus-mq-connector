@@ -44,7 +44,7 @@ from copy import deepcopy
 from pydantic import ValidationError
 
 import os, sys
-sys.path.append(os.path.abspath(os.path.dirname(os.path.realpath(__file__))+"/../chat_api_mq_proxy"))
+sys.path.append(os.path.abspath(os.path.dirname(os.path.realpath(__file__))+"/../neon_messagebus_mq_connector"))
 
 from messages import STTMessage, TTSMessage
 
