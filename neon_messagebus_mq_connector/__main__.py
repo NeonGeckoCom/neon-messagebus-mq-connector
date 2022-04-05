@@ -22,7 +22,7 @@ import sys
 from typing import Optional
 from neon_utils import LOG
 from config import Configuration
-from chat_api_mq_proxy import ChatAPIProxy
+from neon_messagebus_mq_connector import ChatAPIProxy
 
 
 def main(config: Optional[dict] = None, daemon=False):
