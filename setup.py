@@ -26,5 +26,45 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import setuptools
 
-__version__ = "0.0.1"
+from os import path
+
+
+def get_requirements(requirements_filename: str):
+    requirements_file = path.join(path.abspath(path.dirname(__file__)), "requirements", requirements_filename)
+    with open(requirements_file, 'r', encoding='utf-8') as r:
+        requirements = r.readlines()
+    requirements = [r.strip() for r in requirements if r.strip() and not r.strip().startswith("#")]
+    return requirements
+
+
+with open("README.md", "r") as f:
+    long_description = f.read()
+
+with open("./version.py", "r", encoding="utf-8") as v:
+    for line in v.readlines():
+        if line.startswith("__version__"):
+            if '"' in line:
+                version = line.split('"')[1]
+            else:
+                version = line.split("'")[1]
+
+setuptools.setup(
+    name="neon-mq-bus-connector",
+    version=version,
+    author='Neongecko',
+    author_email='developers@neon.ai',
+    license='BSD-3-Clause',
+    description="MQ-Messagebus Connector Module",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/neongeckocom/chat_api_mq_proxy",
+    packages=setuptools.find_packages(),
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "Operating System :: OS Independent"
+    ],
+    python_requires='>=3.6',
+    install_requires=get_requirements("requirements.txt")
+)
