@@ -51,7 +51,7 @@ with open("./version.py", "r", encoding="utf-8") as v:
                 version = line.split("'")[1]
 
 setuptools.setup(
-    name="neon-mq-bus-connector",
+    name="neon-messagebus-mq-connector",
     version=version,
     author='Neongecko',
     author_email='developers@neon.ai',
