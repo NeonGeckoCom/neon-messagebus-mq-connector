@@ -185,7 +185,11 @@ class ChatAPIProxy(MQConnector):
                                         "neon.audio_input"):
                     # Transactional message, get response
                     reply_type = message.context.get("ident")
-                    response = self.bus.wait_for_response(message, reply_type)
+                    response = self.bus.wait_for_response(message, reply_type,
+                                                          timeout=30)
+                    response = response or \
+                        message.response(data={"success": False,
+                                               "error": "no response"})
                     self.handle_neon_message(response)
                 else:
                     # Probable user input to generate klat.response message
