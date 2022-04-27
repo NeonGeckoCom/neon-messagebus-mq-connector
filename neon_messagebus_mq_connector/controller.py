@@ -85,7 +85,7 @@ class ChatAPIProxy(MQConnector):
             self._bus.run_in_thread()
 
     @property
-    def bus(self):
+    def bus(self) -> MessageBusClient:
         """
             Connects to Message Bus if no connection was established
 
@@ -110,9 +110,8 @@ class ChatAPIProxy(MQConnector):
         body = {'msg_type': message.msg_type,
                 'data': message.data, 'context': message.context}
         LOG.debug(f'Received neon response body: {body}')
-        routing_key = routing_key or \
-            message.context.get("klat", {}).get("routing_key") or \
-            'neon_chat_api_response'
+        routing_key = message.context.get("klat", {}).get("routing_key") or \
+            routing_key or 'neon_chat_api_response'
         with self.create_mq_connection(vhost=self.vhost) as mq_connection:
             self.emit_mq_message(connection=mq_connection,
                                  request_data=body,
@@ -181,7 +180,17 @@ class ChatAPIProxy(MQConnector):
                                              message=dict_data))
                 self.handle_neon_message(response, "neon_chat_api_error")
             else:
-                self.bus.emit(Message(**dict_data))
+                message = Message(**dict_data)
+                if message.msg_type in ("neon.get_stt", "neon.get_tts",
+                                        "neon.audio_input"):
+                    # Transactional message, get response
+                    reply_type = message.context.get("ident")
+                    response = self.bus.wait_for_response(message, reply_type)
+                    self.handle_neon_message(response)
+                else:
+                    # Probable user input to generate klat.response message
+                    self.bus.emit(message)
+
             channel.basic_ack(method.delivery_tag)
         else:
             channel.basic_nack()

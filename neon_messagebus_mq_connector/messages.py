@@ -42,7 +42,7 @@ class AbstractMessage(BaseModel):
                           client_name=(str, "pyklatchat"),
                           client=(str, "browser"),
                           source=(str, "mq_api"),
-                          destination=(str, "skills"),
+                          destination=(list, ["skills"]),
                           ident=(str, ...),
                           timing=(dict, {}),
                           neon_should_respond=(bool, True),
@@ -56,39 +56,31 @@ class AbstractMessage(BaseModel):
 
 
 class STTMessage(BaseModel):
-    msg_type: str = "recognizer_loop:utterance"
+    msg_type: str = "neon.get_stt"
     data: create_model("Data",
                        audio_file=(str, ...),
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
     context: create_model("Context",
+                          source=(str, "mq_api"),
+                          destination=(list, ["speech"]),
                           ident=(str, ...),
-                          request_skills=(List[str], None),
                           __base__=BaseModel,
                           )
 
 
 class TTSMessage(BaseModel):
-    msg_type: str = "recognizer_loop:utterance"
+    msg_type: str = "neon.get_tts"
     data: create_model("Data",
-                       utterances=(List[str], ...),
+                       utterance=(str, ...),
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
     context: create_model("Context",
-                          client_name=(str, "pyklatchat"),
-                          client=(str, "browser"),
                           source=(str, "mq_api"),
-                          destination=(str, "skills"),
+                          destination=(list, ["audio"]),
                           ident=(str, ...),
-                          timing=(dict, {}),
-                          neon_should_respond=(bool, True),
-                          username=(str, "guest"),
-                          klat_data=(dict, {'key': 'val'}),
-                          nick_profiles=(dict, {}),
-                          user_profiles=(list, []),
-                          request_skills=(List[str], None),
                           __base__=BaseModel,
                           )
 
