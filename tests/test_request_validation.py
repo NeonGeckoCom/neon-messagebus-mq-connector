@@ -40,7 +40,7 @@ from messages import STTMessage, TTSMessage
 
 class RequestTests(unittest.TestCase):
     default_stt_keys = dict(
-        msg_type="recognizer_loop:utterance",
+        msg_type="neon.get_stt",
         data=dict(
             audio_file="1",
             lang="1"
@@ -51,16 +51,16 @@ class RequestTests(unittest.TestCase):
     )
 
     default_tts_keys = dict(
-        msg_type="recognizer_loop:utterance",
+        msg_type="neon.get_tts",
         data=dict(
-            utterances=["1"],
+            utterance="1",
             lang="en-us"
         ),
         context=dict(
             client_name="1",
             client="1",
             source="1",
-            destination="1",
+            destination=["1"],
             ident="1",
             timing={"1": "1"},
             neon_should_respond=False,
@@ -90,7 +90,6 @@ class RequestTests(unittest.TestCase):
     def test_tts_proper(self):
         "Proper tts request structure"
         dict_keys = deepcopy(self.default_tts_keys)
-
         try:
             TTSMessage(**dict_keys)
         except (ValidationError, ValueError) as err:
@@ -107,9 +106,9 @@ class RequestTests(unittest.TestCase):
     def test_tts_optional(self):
         "Optional fields fillment in tts request"
         dict_keys = deepcopy(self.default_tts_keys)
-        del dict_keys["context"]["neon_should_respond"]
+        del dict_keys["context"]["destination"]
         pydantic_message = TTSMessage(**dict_keys)
         dict_keys = pydantic_message.dict()
 
-        self.assertEqual(dict_keys["context"]["neon_should_respond"], True)
-        self.assertEqual(dict_keys["context"]["destination"], "1")
+        # self.assertEqual(dict_keys["context"]["neon_should_respond"], True)
+        self.assertEqual(dict_keys["context"]["destination"], ['audio'])
