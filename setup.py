@@ -59,7 +59,7 @@ setuptools.setup(
     description="MQ-Messagebus Connector Module",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/neongeckocom/chat_api_mq_proxy",
+    url="https://github.com/neongeckocom/neon-messagebus-mq-connector",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
