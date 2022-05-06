@@ -27,4 +27,38 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-__version__ = "0.1.0"
+import os
+import sys
+
+from typing import Optional
+from neon_utils.logger import LOG
+
+from neon_messagebus_mq_connector.config import Configuration
+from neon_messagebus_mq_connector import ChatAPIProxy
+
+
+def _get_default_config() -> dict:
+    try:
+        return Configuration(
+            from_files=[os.environ.get('CHAT_API_PROXY_CONFIG',
+                                       'config.json')]).config_data
+    except Exception as e:
+        LOG.error(e)
+        return dict()
+
+
+def main(config: Optional[dict] = None, daemon=False):
+    config = config or _get_default_config()
+    try:
+        connector = ChatAPIProxy(config=config, service_name='chat_api_proxy')
+        connector.run(run_sync=False, run_consumers=True,
+                      daemonize_consumers=daemon)
+    except Exception as ex:
+        LOG.error(f'Chat API Proxy Listener (pid: {os.getpid()}) interrupted '
+                  f'due to exception: {ex}')
+        sys.exit(-1)
+
+
+if __name__ == '__main__':
+    LOG.info(f'Starting Chat API Proxy Listener (pid: {os.getpid()})...')
+    main()
