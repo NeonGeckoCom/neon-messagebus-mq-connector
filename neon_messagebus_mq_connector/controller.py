@@ -68,6 +68,7 @@ class ChatAPIProxy(MQConnector):
         """Convenience method to gather message bus handlers"""
         self._bus.on('klat.response', self.handle_neon_message)
         self._bus.on('complete.intent.failure', self.handle_neon_message)
+        self._bus.on('neon.profile_update', self.handle_neon_profile_update)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -116,6 +117,18 @@ class ChatAPIProxy(MQConnector):
             self.emit_mq_message(connection=mq_connection,
                                  request_data=body,
                                  queue=routing_key)
+
+    def handle_neon_profile_update(self, message: Message):
+        """
+        Handles profile updates from Neon Core. Ensures routing_key is defined
+        to avoid publishing private profile values to a shared queue
+        :param message: Message containing the updated user profile
+        """
+        if message.context.get('klat', {}).get('routing_key'):
+            self.handle_neon_message(message)
+        else:
+            LOG.info(f"ignoring profile update for "
+                     f"user={message.data['profile']['user']['username']}")
 
     def validate_request(self, dict_data: dict):
         """
@@ -187,6 +200,8 @@ class ChatAPIProxy(MQConnector):
                     reply_type = message.context.get("ident")
                     response = self.bus.wait_for_response(message, reply_type,
                                                           timeout=30)
+                    # Replace response message type for MQ client to handle
+                    response.msg_type = f'{message.msg_type}.response'
                     response = response or \
                         message.response(data={"success": False,
                                                "error": "no response"})
