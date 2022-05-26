@@ -66,7 +66,7 @@ class RequestTests(unittest.TestCase):
             neon_should_respond=False,
             username="1",
             klat_data={"1": "1"},
-            nick_profiles={"1": "1"}
+            user_profiles=[{"1": "1"}]
         )
     )
 
