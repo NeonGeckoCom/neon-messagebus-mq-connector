@@ -125,9 +125,11 @@ class ChatAPIProxy(MQConnector):
         :param message: Message containing the updated user profile
         """
         if message.context.get('klat', {}).get('routing_key'):
+            LOG.info(f"handling profile update for "
+                     f"user={message.data['profile']['user']['username']}")
             self.handle_neon_message(message)
         else:
-            LOG.info(f"ignoring profile update for "
+            LOG.debug(f"ignoring profile update for "
                      f"user={message.data['profile']['user']['username']}")
 
     def validate_request(self, dict_data: dict):
