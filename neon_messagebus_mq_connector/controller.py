@@ -69,6 +69,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('klat.response', self.handle_neon_message)
         self._bus.on('complete.intent.failure', self.handle_neon_message)
         self._bus.on('neon.profile_update', self.handle_neon_profile_update)
+        self._bus.on('neon.clear_data', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -130,7 +131,7 @@ class ChatAPIProxy(MQConnector):
             self.handle_neon_message(message)
         else:
             LOG.debug(f"ignoring profile update for "
-                     f"user={message.data['profile']['user']['username']}")
+                      f"user={message.data['profile']['user']['username']}")
 
     def validate_request(self, dict_data: dict):
         """
