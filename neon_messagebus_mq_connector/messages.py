@@ -49,7 +49,7 @@ class AbstractMessage(BaseModel):
                           username=(str, "guest"),
                           klat_data=(dict, {'key': 'val'}),
                           mq=(dict, None),
-                          nick_profiles=(dict, {}),
+                          user_profiles=(list, []),
                           request_skills=(List[str], None),
                           __base__=BaseModel,
                           )
