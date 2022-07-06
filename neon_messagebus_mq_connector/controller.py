@@ -30,9 +30,9 @@
 import pika
 from mycroft_bus_client import MessageBusClient, Message
 
-from neon_utils import LOG
+from neon_utils.logger import LOG
 from neon_utils.socket_utils import b64_to_dict
-from neon_utils.messagebus_utils import get_neon_bus_config
+from ovos_config.config import Configuration
 from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
 from pydantic import ValidationError
@@ -48,7 +48,8 @@ class ChatAPIProxy(MQConnector):
         super().__init__(config, service_name)
 
         self.vhost = '/neon_chat_api'
-        self.bus_config = config.get('MESSAGEBUS') or get_neon_bus_config()
+        self.bus_config = config.get('MESSAGEBUS') or \
+            dict(Configuration()).get("websocket")
         self._bus = None
         self.connect_bus()
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
@@ -191,6 +192,7 @@ class ChatAPIProxy(MQConnector):
                     dict_data.pop("message_id")
             check_error, dict_data = self.validate_request(dict_data)
             if check_error is not None:
+                LOG.error(check_error)
                 response = Message(msg_type="klat.error",
                                    data=dict(error=str(check_error),
                                              message=dict_data))

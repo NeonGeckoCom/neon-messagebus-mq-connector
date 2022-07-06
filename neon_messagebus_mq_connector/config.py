@@ -31,7 +31,7 @@ import os
 import json
 
 from typing import List
-from neon_utils import LOG
+from neon_utils.logger import LOG
 
 
 class Configuration:
