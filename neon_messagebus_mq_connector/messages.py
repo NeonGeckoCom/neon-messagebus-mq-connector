@@ -43,7 +43,6 @@ class AbstractMessage(BaseModel):
                           client=(str, "browser"),
                           source=(str, "mq_api"),
                           destination=(list, ["skills"]),
-                          ident=(str, ...),
                           timing=(dict, {}),
                           neon_should_respond=(bool, True),
                           username=(str, "guest"),
@@ -65,7 +64,6 @@ class STTMessage(BaseModel):
     context: create_model("Context",
                           source=(str, "mq_api"),
                           destination=(list, ["speech"]),
-                          ident=(str, ...),
                           __base__=BaseModel,
                           )
 
@@ -73,14 +71,13 @@ class STTMessage(BaseModel):
 class TTSMessage(BaseModel):
     msg_type: str = "neon.get_tts"
     data: create_model("Data",
-                       utterance=(str, ...),
+                       text=(str, ...),
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
     context: create_model("Context",
                           source=(str, "mq_api"),
                           destination=(list, ["audio"]),
-                          ident=(str, ...),
                           __base__=BaseModel,
                           )
 
