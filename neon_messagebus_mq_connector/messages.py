@@ -57,7 +57,7 @@ class AbstractMessage(BaseModel):
 class STTMessage(BaseModel):
     msg_type: str = "neon.get_stt"
     data: create_model("Data",
-                       audio_file=(str, ...),
+                       audio_data=(str, ...),
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
