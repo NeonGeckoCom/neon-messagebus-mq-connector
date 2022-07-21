@@ -245,10 +245,10 @@ class ChatAPIProxy(MQConnector):
             else:
                 dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
                 message = Message(**dict_data)
-                self.bus.emit(message)
                 if message.msg_type in ("neon.get_stt", "neon.get_tts",):
                     # Transactional message, get response
                     self.push_awaiting_message(message)
+                self.bus.emit(message)
             channel.basic_ack()
         else:
             channel.basic_nack()
@@ -258,7 +258,7 @@ class ChatAPIProxy(MQConnector):
     def format_response(self, response_type: str, message: Message) -> dict:
         """ Formats received STT response by Neon API based on type """
         message_id = message.context.get('mq', {}).get('message_id')
-        matching_message_data = self.awaiting_messages.get('stt', {}).get(message_id)
+        matching_message_data = self.awaiting_messages.get(response_type, {}).get(message_id)
         if not matching_message_data:
             LOG.warning('Skipping formatting of the response as message data is unresolved')
             response_data = {}
