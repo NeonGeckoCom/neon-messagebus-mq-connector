@@ -51,7 +51,7 @@ def main(config: Optional[dict] = None, daemon=False):
     config = config or _get_default_config()
     try:
         connector = ChatAPIProxy(config=config, service_name='chat_api_proxy')
-        connector.run(run_sync=False, run_consumers=True,
+        connector.run(run_sync=True, run_consumers=True,
                       daemonize_consumers=daemon)
     except Exception as ex:
         LOG.error(f'Chat API Proxy Listener (pid: {os.getpid()}) interrupted '

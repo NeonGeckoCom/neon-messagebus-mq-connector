@@ -25,7 +25,8 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+import time
+from typing import List, Type, Tuple
 
 import pika
 from mycroft_bus_client import MessageBusClient, Message
@@ -37,7 +38,7 @@ from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
 from pydantic import ValidationError
 
-from .messages import templates
+from .messages import templates, BaseModel
 
 
 class ChatAPIProxy(MQConnector):
@@ -47,7 +48,7 @@ class ChatAPIProxy(MQConnector):
     def __init__(self, config: dict, service_name: str):
         super().__init__(config, service_name)
 
-        self.vhost = '/neon_chat_api'
+        self._vhost = '/neon_chat_api'
         self.bus_config = config.get('MESSAGEBUS') or \
             dict(Configuration()).get("websocket")
         self._bus = None
@@ -57,13 +58,21 @@ class ChatAPIProxy(MQConnector):
                                queue=f'neon_chat_api_request_{self.service_id}',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
-                               auto_ack=False)
+                               auto_ack=True)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_chat_api_request',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
-                               auto_ack=False)
+                               auto_ack=True)
+        self.awaiting_messages = {
+            'tts': {},
+            'stt': {}
+        }
+        self.response_timeouts = {
+            'tts': 60,
+            'stt': 60
+        }
 
     def register_bus_handlers(self):
         """Convenience method to gather message bus handlers"""
@@ -71,6 +80,8 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('complete.intent.failure', self.handle_neon_message)
         self._bus.on('neon.profile_update', self.handle_neon_profile_update)
         self._bus.on('neon.clear_data', self.handle_neon_message)
+        self._bus.on('neon.get_tts.response', self.handle_neon_message)
+        self._bus.on('neon.get_stt.response', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -98,27 +109,31 @@ class ChatAPIProxy(MQConnector):
             self.connect_bus()
         return self._bus
 
-    def handle_neon_message(self, message: Message,
-                            routing_key: str = None):
+    def handle_neon_message(self, message: Message):
         """
-        Handles responses from Neon Core
+            Handles responses from Neon Core
 
-        :param message: Received Message object
-        :param routing_key: Queue to post response to
+            :param message: Received Message object
         """
 
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
-
-        body = {'msg_type': message.msg_type,
-                'data': message.data, 'context': message.context}
+        message.context.setdefault('klat', {})
+        if message.msg_type == 'neon.get_tts.response':
+            body = self.format_response(response_type='tts', message=message)
+            message.context['klat'].setdefault('routing_key', 'neon_tts_response')
+        elif message.msg_type == 'neon.get_stt.response':
+            body = self.format_response(response_type='stt', message=message)
+            message.context['klat'].setdefault('routing_key', 'neon_stt_response')
+        else:
+            body = {'msg_type': message.msg_type,
+                    'data': message.data, 'context': message.context}
         LOG.debug(f'Received neon response body: {body}')
-        routing_key = message.context.get("klat", {}).get("routing_key") or \
-            routing_key or 'neon_chat_api_response'
-        with self.create_mq_connection(vhost=self.vhost) as mq_connection:
-            self.emit_mq_message(connection=mq_connection,
-                                 request_data=body,
-                                 queue=routing_key)
+        if not body:
+            LOG.warning('Something went wrong while formatting - received empty body')
+        else:
+            routing_key = message.context.get("klat", {}).get("routing_key", 'neon_chat_api_response')
+            self.send_message(request_data=body, queue=routing_key)
 
     def handle_neon_profile_update(self, message: Message):
         """
@@ -134,36 +149,71 @@ class ChatAPIProxy(MQConnector):
             LOG.debug(f"ignoring profile update for "
                       f"user={message.data['profile']['user']['username']}")
 
-    def validate_request(self, dict_data: dict):
+    @staticmethod
+    def __validate_message_templates(msg_data: dict, message_templates: List[Type[BaseModel]] = None) -> Tuple[str, dict]:
         """
-        Validate dict_data dictionary structure by using tamplate
-        All templates are located in messages.py file
+            Validate selected pydantic message templates into provided message data
 
-        :param dict_data: request for validation
-        :return: validation details(None if validation passed),
-                 input data with proper data types and filled default fields
+            :param msg_data: Message data to fetch
+            :param message_templates: list of pydantic templates to fetch into data
+
+            :returns tuple containing 2 values:
+                     1) validation error if detected;
+                     2) fetched message data;
         """
-        def check_keys_presence(dict_data, message_templates):
+
+        if not message_templates:
+            LOG.warning('No matching templates found, skipping template fetching')
+            return '', msg_data
+
+        LOG.info('Initiating template validation')
+        for message_template in message_templates:
             try:
-                for message_template in message_templates:
-                    dict_data = message_template(**dict_data).dict()
+                msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
-                return err, dict_data
-            return None, dict_data
+                LOG.error(f'Failed to validate {msg_data} with template = {message_template.__name__}, exception={err}')
+                return str(err), msg_data
+        LOG.info('Template validation completed successfully')
+        return '', msg_data
 
-        # TODO: This is really `templates`, not `skills`
-        request_skills = dict_data["context"].get("request_skills",
-                                                  ["default"])
-        if len(request_skills) == 0:
-            request_skills = ["default"]
-        try:
-            message_templates = [templates[request_type]
-                                 for request_type in request_skills]
-        except KeyError:
-            return None, dict_data
-        check_error, dict_data = check_keys_presence(dict_data,
-                                                     message_templates)
-        return check_error, dict_data
+    @classmethod
+    def validate_request(cls, msg_data: dict):
+        """
+            Fetches the relevant template models and validates provided message data iteratively through them
+
+            :param msg_data: message data for validation
+
+            :return: validation details(None if validation passed),
+                     input data with proper data types and filled default fields
+        """
+
+        requested_templates = msg_data.get("context", {}).get("request_skills") or ["default"]
+        message_templates = []
+
+        for requested_template in requested_templates:
+            matching_template_model = templates.get(requested_template)
+            if not matching_template_model:
+                LOG.warning(f'Template under keyword "{requested_template}" does not exist')
+            else:
+                message_templates.append(matching_template_model)
+
+        detected_error, msg_data = cls.__validate_message_templates(msg_data=msg_data,
+                                                                    message_templates=message_templates)
+        return detected_error, msg_data
+
+    def push_awaiting_message(self, message: Message):
+        """ Pushes awaiting message so its relevant data could be fetched once received response """
+        message_id = message.context.get('mq', {}).get('message_id')
+        if not message_id:
+            LOG.warning('Awaiting message not pushed - message_id is None')
+        else:
+            if message.msg_type == 'neon.get_stt':
+                self.awaiting_messages['stt'][message_id] = {'lang': message.data['lang'],
+                                                             'created_on': int(time.time())}
+            elif message.msg_type == 'neon.get_tts':
+                self.awaiting_messages['tts'][message_id] = {'lang': message.data['lang'],
+                                                             'gender': message.data.get('gender', 'female'),
+                                                             'created_on': int(time.time())}
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
@@ -171,52 +221,74 @@ class ChatAPIProxy(MQConnector):
                             properties: pika.spec.BasicProperties,
                             body: bytes):
         """
-        Handles requests from MQ to Neon Chat API received on queue
-        "neon_chat_api_request"
+            Transfers requests from MQ API to Neon Message Bus API
 
-        :param channel: MQ channel object (pika.channel.Channel)
-        :param method: MQ return method (pika.spec.Basic.Return)
-        :param properties: MQ properties (pika.spec.BasicProperties)
-        :param body: request body (bytes)
+            :param channel: MQ channel object (pika.channel.Channel)
+            :param method: MQ return method (pika.spec.Basic.Return)
+            :param properties: MQ properties (pika.spec.BasicProperties)
+            :param body: request body (bytes)
 
         """
         if body and isinstance(body, bytes):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
-            dict_data["context"].setdefault("mq", dict())
-            if "routing_key" in dict_data:
-                dict_data["context"]["mq"]["routing_key"] = \
-                    dict_data.pop("routing_key")
-            if "message_id" in dict_data:
-                dict_data["context"]["mq"]["message_id"] = \
-                    dict_data.pop("message_id")
-            check_error, dict_data = self.validate_request(dict_data)
-            if check_error is not None:
-                LOG.error(check_error)
-                response = Message(msg_type="klat.error",
-                                   data=dict(error=str(check_error),
-                                             message=dict_data))
-                self.handle_neon_message(response, "neon_chat_api_error")
-            else:
-                message = Message(**dict_data)
-                if message.msg_type in ("neon.get_stt", "neon.get_tts",
-                                        "neon.audio_input"):
-                    # Transactional message, get response
-                    reply_type = message.context.get("ident")
-                    response = self.bus.wait_for_response(message, reply_type,
-                                                          timeout=30)
-                    # Replace response message type for MQ client to handle
-                    response.msg_type = f'{message.msg_type}.response'
-                    response = response or \
-                        message.response(data={"success": False,
-                                               "error": "no response"})
-                    self.handle_neon_message(response)
-                else:
-                    # Probable user input to generate klat.response message
-                    self.bus.emit(message)
+            dict_data["context"].setdefault("mq", dict(routing_key=dict_data.pop('routing_key', ''),
+                                                       message_id=dict_data.pop('message_id', ''),
+                                                       cid=dict_data.pop('cid', ''),
+                                                       sid=dict_data.pop('sid', '')))
 
-            channel.basic_ack(method.delivery_tag)
+            validation_error, dict_data = self.validate_request(dict_data)
+            if validation_error:
+                response = Message(msg_type="klat.error",
+                                   data=dict(error=validation_error,
+                                             message=dict_data))
+                response.context.setdefault('klat', {})['routing_key'] = 'neon_chat_api_error'
+                self.handle_neon_message(response)
+            else:
+                dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
+                message = Message(**dict_data)
+                if message.msg_type in ("neon.get_stt", "neon.get_tts",):
+                    # Transactional message, get response
+                    self.push_awaiting_message(message)
+                self.bus.emit(message)
+            channel.basic_ack()
         else:
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
                             f' got: {type(body)}')
+
+    def format_response(self, response_type: str, message: Message) -> dict:
+        """ Formats received STT response by Neon API based on type """
+        message_id = message.context.get('mq', {}).get('message_id')
+        matching_message_data = self.awaiting_messages.get(response_type, {}).get(message_id)
+        if not matching_message_data:
+            LOG.warning('Skipping formatting of the response as message data is unresolved')
+            response_data = {}
+        else:
+            timeout = self.response_timeouts.get(response_type, 30)
+            if int(time.time()) - matching_message_data.get('created_on', 0) > timeout:
+                LOG.warning(f'Message ID = {message_id} received timeout on {response_type} (>{timeout} seconds)')
+                response_data = {}
+            else:
+                if response_type == 'tts':
+                    lang = matching_message_data.get('lang', 'en-us')
+                    gender = matching_message_data.get('gender', 'female')
+                    audio_data_b64 = message.data[lang]['audio'][gender]
+
+                    response_data = {
+                        'audio_data': audio_data_b64,
+                        'lang': lang,
+                        'gender': gender,
+                        'context': message.context
+                    }
+                elif response_type == 'stt':
+                    response_data = {
+                        'transcript': message.data.get('transcripts', [''])[0],
+                        'lang': matching_message_data['lang'],
+                        'context': message.context
+                    }
+                else:
+                    LOG.warning(f'Failed to response response type -> {response_type}')
+                    response_data = {}
+                LOG.info(f'Formatted {response_type} response data = {response_data}')
+        return response_data

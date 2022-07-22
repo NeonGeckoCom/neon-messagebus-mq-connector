@@ -42,7 +42,7 @@ class RequestTests(unittest.TestCase):
     default_stt_keys = dict(
         msg_type="neon.get_stt",
         data=dict(
-            audio_file="1",
+            audio_data="123",
             lang="1"
         ),
         context=dict(
@@ -53,7 +53,7 @@ class RequestTests(unittest.TestCase):
     default_tts_keys = dict(
         msg_type="neon.get_tts",
         data=dict(
-            utterance="1",
+            text="1",
             lang="en-us"
         ),
         context=dict(
@@ -82,7 +82,7 @@ class RequestTests(unittest.TestCase):
     def test_stt_missing(self):
         "Missing fields in stt request structure"
         dict_keys = deepcopy(self.default_stt_keys)
-        del dict_keys["data"]["audio_file"]
+        del dict_keys["data"]["audio_data"]
 
         with self.assertRaises(ValueError):
             STTMessage(**dict_keys)
@@ -98,7 +98,7 @@ class RequestTests(unittest.TestCase):
     def test_stt_proper_missing(self):
         "Missing fields in tts request structure"
         dict_keys = deepcopy(self.default_tts_keys)
-        del dict_keys["context"]["ident"]
+        del dict_keys["data"]["text"]
 
         with self.assertRaises(ValidationError):
             TTSMessage(**dict_keys)
