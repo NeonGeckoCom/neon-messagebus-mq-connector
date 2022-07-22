@@ -233,7 +233,9 @@ class ChatAPIProxy(MQConnector):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
             dict_data["context"].setdefault("mq", dict(routing_key=dict_data.pop('routing_key', ''),
-                                                       message_id=dict_data.pop('message_id', '')))
+                                                       message_id=dict_data.pop('message_id', ''),
+                                                       cid=dict_data.pop('cid', ''),
+                                                       sid=dict_data.pop('sid', '')))
 
             validation_error, dict_data = self.validate_request(dict_data)
             if validation_error:
