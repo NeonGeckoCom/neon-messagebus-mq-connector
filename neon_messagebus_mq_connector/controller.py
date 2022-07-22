@@ -70,8 +70,8 @@ class ChatAPIProxy(MQConnector):
             'stt': {}
         }
         self.response_timeouts = {
-            'tts': 30,
-            'stt': 30
+            'tts': 60,
+            'stt': 60
         }
 
     def register_bus_handlers(self):
