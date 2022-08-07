@@ -251,7 +251,6 @@ class ChatAPIProxy(MQConnector):
                     # Transactional message, get response
                     self.push_awaiting_message(message)
                 self.bus.emit(message)
-            channel.basic_ack()
         else:
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
