@@ -184,7 +184,7 @@ class ChatAPIProxy(MQConnector):
                      input data with proper data types and filled default fields
         """
 
-        requested_templates = msg_data.get("context", {}).get("request_skills") or ["default"]
+        requested_templates = msg_data.get("context", {}).get("request_skills") or ["recognizer"]
         message_templates = []
 
         for requested_template in requested_templates:
