@@ -38,6 +38,7 @@ from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
 from pydantic import ValidationError
 
+from .enums import NeonResponseTypes
 from .messages import templates, BaseModel
 
 
@@ -50,7 +51,7 @@ class ChatAPIProxy(MQConnector):
 
         self._vhost = '/neon_chat_api'
         self.bus_config = config.get('MESSAGEBUS') or \
-            dict(Configuration()).get("websocket")
+                          dict(Configuration()).get("websocket")
         self._bus = None
         self.connect_bus()
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
@@ -66,12 +67,12 @@ class ChatAPIProxy(MQConnector):
                                on_error=self.default_error_handler,
                                auto_ack=True)
         self.awaiting_messages = {
-            'tts': {},
-            'stt': {}
+            NeonResponseTypes.TTS: {},
+            NeonResponseTypes.STT: {}
         }
         self.response_timeouts = {
-            'tts': 60,
-            'stt': 60
+            NeonResponseTypes.TTS: 60,
+            NeonResponseTypes.STT: 60
         }
 
     def register_bus_handlers(self):
@@ -120,10 +121,10 @@ class ChatAPIProxy(MQConnector):
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat', {})
         if message.msg_type == 'neon.get_tts.response':
-            body = self.format_response(response_type='tts', message=message)
+            body = self.format_response(response_type=NeonResponseTypes.TTS, message=message)
             message.context['klat'].setdefault('routing_key', 'neon_tts_response')
         elif message.msg_type == 'neon.get_stt.response':
-            body = self.format_response(response_type='stt', message=message)
+            body = self.format_response(response_type=NeonResponseTypes.STT, message=message)
             message.context['klat'].setdefault('routing_key', 'neon_stt_response')
         else:
             body = {'msg_type': message.msg_type,
@@ -150,7 +151,8 @@ class ChatAPIProxy(MQConnector):
                       f"user={message.data['profile']['user']['username']}")
 
     @staticmethod
-    def __validate_message_templates(msg_data: dict, message_templates: List[Type[BaseModel]] = None) -> Tuple[str, dict]:
+    def __validate_message_templates(msg_data: dict, message_templates: List[Type[BaseModel]] = None) -> Tuple[
+        str, dict]:
         """
             Validate selected pydantic message templates into provided message data
 
@@ -208,12 +210,13 @@ class ChatAPIProxy(MQConnector):
             LOG.warning('Awaiting message not pushed - message_id is None')
         else:
             if message.msg_type == 'neon.get_stt':
-                self.awaiting_messages['stt'][message_id] = {'lang': message.data['lang'],
-                                                             'created_on': int(time.time())}
+                self.awaiting_messages[NeonResponseTypes.STT][message_id] = {'lang': message.data['lang'],
+                                                                             'created_on': int(time.time())}
             elif message.msg_type == 'neon.get_tts':
-                self.awaiting_messages['tts'][message_id] = {'lang': message.data['lang'],
-                                                             'gender': message.data.get('gender', 'female'),
-                                                             'created_on': int(time.time())}
+                self.awaiting_messages[NeonResponseTypes.TTS][message_id] = {'lang': message.data['lang'],
+                                                                             'gender': message.data.get('gender',
+                                                                                                        'female'),
+                                                                             'created_on': int(time.time())}
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
@@ -256,7 +259,7 @@ class ChatAPIProxy(MQConnector):
             raise TypeError(f'Invalid body received, expected: bytes string;'
                             f' got: {type(body)}')
 
-    def format_response(self, response_type: str, message: Message) -> dict:
+    def format_response(self, response_type: NeonResponseTypes, message: Message) -> dict:
         """ Formats received STT response by Neon API based on type """
         message_id = message.context.get('mq', {}).get('message_id')
         matching_message_data = self.awaiting_messages.get(response_type, {}).get(message_id)
@@ -269,7 +272,7 @@ class ChatAPIProxy(MQConnector):
                 LOG.warning(f'Message ID = {message_id} received timeout on {response_type} (>{timeout} seconds)')
                 response_data = {}
             else:
-                if response_type == 'tts':
+                if response_type == NeonResponseTypes.TTS:
                     lang = matching_message_data.get('lang', 'en-us')
                     gender = matching_message_data.get('gender', 'female')
                     audio_data_b64 = message.data[lang]['audio'][gender]
@@ -280,7 +283,7 @@ class ChatAPIProxy(MQConnector):
                         'gender': gender,
                         'context': message.context
                     }
-                elif response_type == 'stt':
+                elif response_type == NeonResponseTypes.STT:
                     response_data = {
                         'transcript': message.data.get('transcripts', [''])[0],
                         'lang': matching_message_data['lang'],
