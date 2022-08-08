@@ -66,10 +66,6 @@ class ChatAPIProxy(MQConnector):
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
                                auto_ack=True)
-        self.awaiting_messages = {
-            NeonResponseTypes.TTS: {},
-            NeonResponseTypes.STT: {}
-        }
         self.response_timeouts = {
             NeonResponseTypes.TTS: 60,
             NeonResponseTypes.STT: 60
@@ -151,8 +147,7 @@ class ChatAPIProxy(MQConnector):
                       f"user={message.data['profile']['user']['username']}")
 
     @staticmethod
-    def __validate_message_templates(msg_data: dict, message_templates: List[Type[BaseModel]] = None) -> Tuple[
-        str, dict]:
+    def __validate_message_templates(msg_data: dict, message_templates: List[Type[BaseModel]] = None) -> Tuple[str, dict]:
         """
             Validate selected pydantic message templates into provided message data
 
@@ -203,20 +198,17 @@ class ChatAPIProxy(MQConnector):
                                                                     message_templates=message_templates)
         return detected_error, msg_data
 
-    def push_awaiting_message(self, message: Message):
-        """ Pushes awaiting message so its relevant data could be fetched once received response """
+    def validate_message_context(self, message: Message) -> bool:
+        """ Validates message context so its relevant data could be fetched once received response """
         message_id = message.context.get('mq', {}).get('message_id')
         if not message_id:
-            LOG.warning('Awaiting message not pushed - message_id is None')
+            LOG.warning('Message context validation failed - message_id is None')
+            return False
         else:
+            message.context['created_on'] = int(time.time())
             if message.msg_type == 'neon.get_stt':
-                self.awaiting_messages[NeonResponseTypes.STT][message_id] = {'lang': message.data['lang'],
-                                                                             'created_on': int(time.time())}
-            elif message.msg_type == 'neon.get_tts':
-                self.awaiting_messages[NeonResponseTypes.TTS][message_id] = {'lang': message.data['lang'],
-                                                                             'gender': message.data.get('gender',
-                                                                                                        'female'),
-                                                                             'created_on': int(time.time())}
+                message.context['lang'] = message.data.get('lang')
+        return True
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
@@ -250,10 +242,11 @@ class ChatAPIProxy(MQConnector):
             else:
                 # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
                 message = Message(**dict_data)
-                if message.msg_type in ("neon.get_stt", "neon.get_tts",):
-                    # Transactional message, get response
-                    self.push_awaiting_message(message)
-                self.bus.emit(message)
+                is_context_valid = self.validate_message_context(message)
+                if is_context_valid:
+                    self.bus.emit(message)
+                else:
+                    LOG.error(f'Message context is invalid - {message} is not emitted')
         else:
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
@@ -261,36 +254,41 @@ class ChatAPIProxy(MQConnector):
 
     def format_response(self, response_type: NeonResponseTypes, message: Message) -> dict:
         """ Formats received STT response by Neon API based on type """
-        message_id = message.context.get('mq', {}).get('message_id')
-        matching_message_data = self.awaiting_messages.get(response_type, {}).get(message_id)
-        if not matching_message_data:
-            LOG.warning('Skipping formatting of the response as message data is unresolved')
+        msg_error = message.data.get('error')
+        if msg_error:
+            LOG.error(f'Failed to fetch data for context={message.context} - {msg_error}')
+            return {}
+        timeout = self.response_timeouts.get(response_type, 30)
+        if int(time.time()) - message.context.get('created_on', 0) > timeout:
+            LOG.warning(f'Message = {message} received timeout on {response_type} (>{timeout} seconds)')
             response_data = {}
         else:
-            timeout = self.response_timeouts.get(response_type, 30)
-            if int(time.time()) - matching_message_data.get('created_on', 0) > timeout:
-                LOG.warning(f'Message ID = {message_id} received timeout on {response_type} (>{timeout} seconds)')
-                response_data = {}
-            else:
-                if response_type == NeonResponseTypes.TTS:
-                    lang = matching_message_data.get('lang', 'en-us')
-                    gender = matching_message_data.get('gender', 'female')
-                    audio_data_b64 = message.data[lang]['audio'][gender]
+            if response_type == NeonResponseTypes.TTS:
+                lang = list(message.data)[0]
+                gender = message.data[lang].get('genders', ['female'])[0]
+                audio_data_b64 = message.data[lang]['audio'][gender]
 
+                response_data = {
+                    'audio_data': audio_data_b64,
+                    'lang': lang,
+                    'gender': gender,
+                    'context': message.context
+                }
+            elif response_type == NeonResponseTypes.STT:
+                transcripts = message.data.get('transcripts', [''])
+                if transcripts and transcripts[0]:
+                    LOG.info(f'transcript candidates received - {transcripts}')
                     response_data = {
-                        'audio_data': audio_data_b64,
-                        'lang': lang,
-                        'gender': gender,
-                        'context': message.context
-                    }
-                elif response_type == NeonResponseTypes.STT:
-                    response_data = {
-                        'transcript': message.data.get('transcripts', [''])[0],
-                        'lang': matching_message_data['lang'],
+                        'transcript': transcripts[0],
+                        'other_transcripts': [transcript for transcript in transcripts if transcript != transcripts[0]],
+                        'lang': message.context.get('lang', 'en-us'),
                         'context': message.context
                     }
                 else:
-                    LOG.warning(f'Failed to response response type -> {response_type}')
+                    LOG.error('No transcripts received')
                     response_data = {}
-                LOG.info(f'Formatted {response_type} response data = {response_data}')
+            else:
+                LOG.warning(f'Failed to response response type -> {response_type}')
+                response_data = {}
+            # LOG.debug(f'Formatted {response_type} response data = {response_data}')
         return response_data
