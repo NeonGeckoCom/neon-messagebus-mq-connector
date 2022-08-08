@@ -248,7 +248,7 @@ class ChatAPIProxy(MQConnector):
                 response.context.setdefault('klat', {})['routing_key'] = 'neon_chat_api_error'
                 self.handle_neon_message(response)
             else:
-                dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
+                # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
                 message = Message(**dict_data)
                 if message.msg_type in ("neon.get_stt", "neon.get_tts",):
                     # Transactional message, get response
