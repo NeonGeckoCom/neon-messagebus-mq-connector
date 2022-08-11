@@ -253,7 +253,14 @@ class ChatAPIProxy(MQConnector):
                             f' got: {type(body)}')
 
     def format_response(self, response_type: NeonResponseTypes, message: Message) -> dict:
-        """ Formats received STT response by Neon API based on type """
+        """
+            Formats received response by Neon API based on type
+
+            :param response_type: response type from NeonResponseTypes Enum
+            :param message: Neon MessageBus Message object
+
+            :returns formatted response dict
+        """
         msg_error = message.data.get('error')
         if msg_error:
             LOG.error(f'Failed to fetch data for context={message.context} - {msg_error}')
