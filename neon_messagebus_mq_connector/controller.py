@@ -115,13 +115,13 @@ class ChatAPIProxy(MQConnector):
 
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
-        message.context.setdefault('klat', {})
+        message.context.setdefault('klat_data', {})
         if message.msg_type == 'neon.get_tts.response':
             body = self.format_response(response_type=NeonResponseTypes.TTS, message=message)
-            message.context['klat'].setdefault('routing_key', 'neon_tts_response')
+            message.context['klat_data'].setdefault('routing_key', 'neon_tts_response')
         elif message.msg_type == 'neon.get_stt.response':
             body = self.format_response(response_type=NeonResponseTypes.STT, message=message)
-            message.context['klat'].setdefault('routing_key', 'neon_stt_response')
+            message.context['klat_data'].setdefault('routing_key', 'neon_stt_response')
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
@@ -129,7 +129,7 @@ class ChatAPIProxy(MQConnector):
         if not body:
             LOG.warning('Something went wrong while formatting - received empty body')
         else:
-            routing_key = message.context.get("klat", {}).get("routing_key", 'neon_chat_api_response')
+            routing_key = message.context.get("klat_data", {}).get("routing_key", 'neon_chat_api_response')
             self.send_message(request_data=body, queue=routing_key)
 
     def handle_neon_profile_update(self, message: Message):
@@ -138,7 +138,7 @@ class ChatAPIProxy(MQConnector):
         to avoid publishing private profile values to a shared queue
         :param message: Message containing the updated user profile
         """
-        if message.context.get('klat', {}).get('routing_key'):
+        if message.context.get('klat_data', {}).get('routing_key'):
             LOG.info(f"handling profile update for "
                      f"user={message.data['profile']['user']['username']}")
             self.handle_neon_message(message)
@@ -237,7 +237,7 @@ class ChatAPIProxy(MQConnector):
                 response = Message(msg_type="klat.error",
                                    data=dict(error=validation_error,
                                              message=dict_data))
-                response.context.setdefault('klat', {})['routing_key'] = 'neon_chat_api_error'
+                response.context.setdefault('klat_data', {})['routing_key'] = 'neon_chat_api_error'
                 self.handle_neon_message(response)
             else:
                 # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")

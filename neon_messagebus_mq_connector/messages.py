@@ -60,10 +60,6 @@ class RecognizerMessage(BaseModel):
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
-    context: create_model("Context",
-                          source=(str, "mq_api"),
-                          __base__=BaseModel,
-                          )
 
 
 class STTMessage(BaseModel):
