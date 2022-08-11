@@ -37,13 +37,11 @@ class BaseModel(PydanticBaseModel):
 
 
 class AbstractMessage(BaseModel):
-    msg_type: str = "recognizer_loop:utterance"
     context: create_model("Context",
                           client_name=(str, "pyklatchat"),
                           client=(str, "browser"),
                           source=(str, "mq_api"),
                           destination=(list, ["skills"]),
-                          ident=(str, ...),
                           timing=(dict, {}),
                           neon_should_respond=(bool, True),
                           username=(str, "guest"),
@@ -55,17 +53,25 @@ class AbstractMessage(BaseModel):
                           )
 
 
+class RecognizerMessage(BaseModel):
+    msg_type: str = "recognizer_loop:utterance"
+    data: create_model("Data",
+                       utterances=(list, ...),
+                       lang=(str, ...),
+                       __base__=BaseModel,
+                       )
+
+
 class STTMessage(BaseModel):
     msg_type: str = "neon.get_stt"
     data: create_model("Data",
-                       audio_file=(str, ...),
+                       audio_data=(str, ...),
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
     context: create_model("Context",
                           source=(str, "mq_api"),
                           destination=(list, ["speech"]),
-                          ident=(str, ...),
                           __base__=BaseModel,
                           )
 
@@ -73,14 +79,13 @@ class STTMessage(BaseModel):
 class TTSMessage(BaseModel):
     msg_type: str = "neon.get_tts"
     data: create_model("Data",
-                       utterance=(str, ...),
+                       text=(str, ...),
                        lang=(str, ...),
                        __base__=BaseModel,
                        )
     context: create_model("Context",
                           source=(str, "mq_api"),
                           destination=(list, ["audio"]),
-                          ident=(str, ...),
                           __base__=BaseModel,
                           )
 
@@ -88,5 +93,6 @@ class TTSMessage(BaseModel):
 templates = {
     "stt": STTMessage,
     "tts": TTSMessage,
+    "recognizer": RecognizerMessage,
     "default": AbstractMessage
 }
