@@ -1,4 +1,4 @@
 neon-utils[network]~=1.0
 pydantic~=1.9
-neon-mq-connector==0.5.2a1
+neon-mq-connector~=0.6
 ovos-config~=0.0,>=0.0.3
