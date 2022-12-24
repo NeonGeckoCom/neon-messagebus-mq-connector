@@ -50,8 +50,11 @@ class ChatAPIProxy(MQConnector):
         super().__init__(config, service_name)
 
         self._vhost = '/neon_chat_api'
-        self.bus_config = config.get('MESSAGEBUS') or \
-                          dict(Configuration()).get("websocket")
+        self.supported_chat_skills = config.get('SUPPORTED_CHAT_SKILLS', [])
+        if not self.supported_chat_skills:
+            LOG.warning('No supported Neon chat skills specified, '
+                        'consider altering SUPPORT_CHAT_SKILLS config property')
+        self.bus_config = config.get('MESSAGEBUS')
         self._bus = None
         self.connect_bus()
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
@@ -81,6 +84,8 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('neon.clear_data', self.handle_neon_message)
         self._bus.on('neon.get_tts.response', self.handle_neon_message)
         self._bus.on('neon.get_stt.response', self.handle_neon_message)
+        for chat_skill in self.supported_chat_skills:
+            self._bus.on(f'chat.{chat_skill}.response', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -200,17 +205,22 @@ class ChatAPIProxy(MQConnector):
                                                                     message_templates=message_templates)
         return detected_error, msg_data
 
-    def validate_message_context(self, message: Message) -> bool:
+    @staticmethod
+    def validate_message_context(message: Message) -> Message:
         """ Validates message context so its relevant data could be fetched once received response """
-        message_id = message.context.get('mq', {}).get('message_id')
+        mq_context = message.context.get('mq', {})
+        message_id = mq_context.get('message_id')
+        requested_service_name = mq_context.get('requested_service_name', '')
         if not message_id:
             LOG.warning('Message context validation failed - message_id is None')
-            return False
+            return
         else:
             message.context['created_on'] = int(time.time())
             if message.msg_type == 'neon.get_stt':
                 message.context['lang'] = message.data.get('lang')
-        return True
+            elif message.msg_type == 'recognizer_loop:utterance' and requested_service_name:
+                message.msg_type = f'chat.{requested_service_name}'
+        return message
 
     def handle_user_message(self,
                             channel: pika.channel.Channel,
@@ -231,6 +241,7 @@ class ChatAPIProxy(MQConnector):
             LOG.info(f'Received user message: {dict_data}')
             dict_data["context"].setdefault("mq", dict(routing_key=dict_data.pop('routing_key', ''),
                                                        message_id=dict_data.pop('message_id', ''),
+                                                       requested_service_name=dict_data.pop('requested_service_name', ''),
                                                        cid=dict_data.pop('cid', ''),
                                                        sid=dict_data.pop('sid', '')))
 
@@ -244,11 +255,11 @@ class ChatAPIProxy(MQConnector):
             else:
                 # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
                 message = Message(**dict_data)
-                is_context_valid = self.validate_message_context(message)
-                if is_context_valid:
-                    self.bus.emit(message)
+                validated_message = self.validate_message_context(message=message)
+                if validated_message:
+                    self.bus.emit(validated_message)
                 else:
-                    LOG.error(f'Message context is invalid - {message} is not emitted')
+                    LOG.error(f'Message context is invalid - message={message.serialize()} is not emitted')
         else:
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
