@@ -54,7 +54,7 @@ class ChatAPIProxy(MQConnector):
         if not self.supported_chat_skills:
             LOG.warning('No supported Neon chat skills specified, '
                         'consider altering SUPPORT_CHAT_SKILLS config property')
-        self.bus_config = config.get('MESSAGEBUS')
+        self.bus_config = config.get('MESSAGEBUS') or dict(Configuration()).get("websocket")
         self._bus = None
         self.connect_bus()
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
