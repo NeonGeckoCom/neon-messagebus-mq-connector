@@ -29,7 +29,8 @@ import time
 from typing import List, Type, Tuple
 
 import pika
-from mycroft_bus_client import MessageBusClient, Message
+from ovos_bus_client.client import MessageBusClient
+from ovos_bus_client.message import Message
 
 from neon_utils.logger import LOG
 from neon_utils.socket_utils import b64_to_dict
