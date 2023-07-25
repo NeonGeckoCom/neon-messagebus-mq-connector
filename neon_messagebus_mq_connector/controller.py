@@ -32,7 +32,7 @@ import pika
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
 
-from neon_utils.logger import LOG
+from ovos_utils.log import LOG, log_deprecation
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
 from neon_mq_connector.connector import MQConnector
@@ -48,11 +48,15 @@ class ChatAPIProxy(MQConnector):
     Proxy module for establishing connection between PyKlatchat and neon chat api"""
 
     def __init__(self, config: dict, service_name: str):
-        super().__init__(config, service_name)
-
+        config = config or Configuration()
+        mq_config = config.get("MQ", config)
+        super().__init__(mq_config, service_name)
+        self.bus_config = config.get("websocket")
+        if config.get("MESSAGEBUS"):
+            log_deprecation("MESSAGEBUS config is deprecated. use `websocket`",
+                            "1.0.0")
+            self.bus_config = config.get("websocket")
         self._vhost = '/neon_chat_api'
-        self.bus_config = config.get('MESSAGEBUS') or \
-                          dict(Configuration()).get("websocket")
         self._bus = None
         self.connect_bus()
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
