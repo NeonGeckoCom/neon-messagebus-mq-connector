@@ -136,7 +136,10 @@ class ChatAPIProxy(MQConnector):
         if not body:
             LOG.warning('Something went wrong while formatting - received empty body')
         else:
-            routing_key = message.context.get("klat_data", {}).get("routing_key", 'neon_chat_api_response')
+            routing_key = message.context.get("mq",
+                                              {}).get("routing_key",
+                                                      'neon_chat_api_response')
+            LOG.debug(f"Got routing_key={routing_key}")
             self.send_message(request_data=body, queue=routing_key)
 
     def handle_neon_profile_update(self, message: Message):
@@ -170,14 +173,14 @@ class ChatAPIProxy(MQConnector):
             LOG.warning('No matching templates found, skipping template fetching')
             return '', msg_data
 
-        LOG.info('Initiating template validation')
+        LOG.debug('Initiating template validation')
         for message_template in message_templates:
             try:
                 msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
                 LOG.error(f'Failed to validate {msg_data} with template = {message_template.__name__}, exception={err}')
                 return str(err), msg_data
-        LOG.info('Template validation completed successfully')
+        LOG.debug('Template validation completed successfully')
         return '', msg_data
 
     @classmethod
@@ -267,12 +270,12 @@ class ChatAPIProxy(MQConnector):
 
     def format_response(self, response_type: NeonResponseTypes, message: Message) -> dict:
         """
-            Formats received response by Neon API based on type
+        Formats received response by Neon API based on type
 
-            :param response_type: response type from NeonResponseTypes Enum
-            :param message: Neon MessageBus Message object
+        :param response_type: response type from NeonResponseTypes Enum
+        :param message: Neon MessageBus Message object
 
-            :returns formatted response dict
+        :returns formatted response dict
         """
         msg_error = message.data.get('error')
         if msg_error:
