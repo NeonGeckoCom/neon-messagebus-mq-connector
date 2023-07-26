@@ -140,7 +140,8 @@ class ChatAPIProxy(MQConnector):
                                               {}).get("routing_key",
                                                       'neon_chat_api_response')
             LOG.debug(f"Got routing_key={routing_key}")
-            self.send_message(request_data=body, queue=routing_key)
+            self.send_message(request_data=body, queue=routing_key,
+                              override_message_id=False)
 
     def handle_neon_profile_update(self, message: Message):
         """
