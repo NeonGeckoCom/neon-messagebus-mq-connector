@@ -279,11 +279,13 @@ class ChatAPIProxy(MQConnector):
         """
         msg_error = message.data.get('error')
         if msg_error:
-            LOG.error(f'Failed to fetch data for context={message.context} - {msg_error}')
+            LOG.error(f'Failed to fetch data for context={message.context} - '
+                      f'{msg_error}')
             return {}
         timeout = self.response_timeouts.get(response_type, 30)
         if int(time.time()) - message.context.get('created_on', 0) > timeout:
-            LOG.warning(f'Message = {message} received timeout on {response_type} (>{timeout} seconds)')
+            LOG.warning(f'Message = {message} received timeout on '
+                        f'{response_type} (>{timeout} seconds)')
             response_data = {}
         else:
             if response_type == NeonResponseTypes.TTS:
@@ -303,7 +305,9 @@ class ChatAPIProxy(MQConnector):
                     LOG.info(f'transcript candidates received - {transcripts}')
                     response_data = {
                         'transcript': transcripts[0],
-                        'other_transcripts': [transcript for transcript in transcripts if transcript != transcripts[0]],
+                        'other_transcripts': [transcript for transcript in
+                                              transcripts if
+                                              transcript != transcripts[0]],
                         'lang': message.context.get('lang', 'en-us'),
                         'context': message.context
                     }
@@ -311,9 +315,7 @@ class ChatAPIProxy(MQConnector):
                     LOG.error('No transcripts received')
                     response_data = {}
             else:
-                LOG.warning(f'Failed to response response type -> {response_type}')
+                LOG.warning(f'Failed to response response type -> '
+                            f'{response_type}')
                 response_data = {}
-            # LOG.debug(f'Formatted {response_type} response data = {response_data}')
-        response_data['message_id'] = message.context.get("mq",
-                                                          {}).get("message_id")
         return response_data
