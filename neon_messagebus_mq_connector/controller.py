@@ -223,28 +223,34 @@ class ChatAPIProxy(MQConnector):
                             properties: pika.spec.BasicProperties,
                             body: bytes):
         """
-            Transfers requests from MQ API to Neon Message Bus API
+        Transfers requests from MQ API to Neon Message Bus API
 
-            :param channel: MQ channel object (pika.channel.Channel)
-            :param method: MQ return method (pika.spec.Basic.Return)
-            :param properties: MQ properties (pika.spec.BasicProperties)
-            :param body: request body (bytes)
+        :param channel: MQ channel object (pika.channel.Channel)
+        :param method: MQ return method (pika.spec.Basic.Return)
+        :param properties: MQ properties (pika.spec.BasicProperties)
+        :param body: request body (bytes)
 
         """
         if body and isinstance(body, bytes):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
-            dict_data["context"].setdefault("mq", dict(routing_key=dict_data.pop('routing_key', ''),
-                                                       message_id=dict_data.pop('message_id', ''),
-                                                       cid=dict_data.pop('cid', ''),
-                                                       sid=dict_data.pop('sid', '')))
+            mq_context = {"routing_key": dict_data.pop('routing_key', ''),
+                          "message_id": dict_data.pop('message_id', '')}
+            klat_context = {"cid": dict_data.pop('cid', ''),
+                            "sid": dict_data.pop('sid', '')}
+            dict_data["context"].setdefault("mq", mq_context)
+            dict_data["context"].setdefault("klat_data", klat_context)
 
             validation_error, dict_data = self.validate_request(dict_data)
             if validation_error:
-                response = Message(msg_type="klat.error",
-                                   data=dict(error=validation_error,
-                                             message=dict_data))
-                response.context.setdefault('klat_data', {})['routing_key'] = 'neon_chat_api_error'
+                LOG.error(f"Validation failed with: {validation_error}")
+                # Don't deserialize since this Message may be malformed
+                context = dict_data.pop("context")
+                response = Message("klat.error", {"error": validation_error,
+                                                  "data": dict_data},
+                                   context)
+                response.context['klat_data'].setdefault('routing_key',
+                                                         'neon_chat_api_error')
                 self.handle_neon_message(response)
             else:
                 # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
