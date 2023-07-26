@@ -315,4 +315,6 @@ class ChatAPIProxy(MQConnector):
                 LOG.warning(f'Failed to response response type -> {response_type}')
                 response_data = {}
             # LOG.debug(f'Formatted {response_type} response data = {response_data}')
+        response_data['message_id'] = message.context.get("mq",
+                                                          {}).get("message_id")
         return response_data
