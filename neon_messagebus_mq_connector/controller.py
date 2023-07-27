@@ -239,8 +239,9 @@ class ChatAPIProxy(MQConnector):
             LOG.info(f'Received user message: {dict_data}')
             mq_context = {"routing_key": dict_data.pop('routing_key', ''),
                           "message_id": dict_data.pop('message_id', '')}
-            klat_context = {"cid": dict_data.pop('cid', ''),
-                            "sid": dict_data.pop('sid', '')}
+            klat_context = {**{"cid": dict_data.pop('cid', ''),
+                               "sid": dict_data.pop('sid', '')},
+                            **mq_context}  # MQ Context for backwards-compat
             dict_data["context"].setdefault("mq", mq_context)
             dict_data["context"].setdefault("klat_data", klat_context)
 
