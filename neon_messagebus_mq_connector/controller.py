@@ -136,7 +136,10 @@ class ChatAPIProxy(MQConnector):
         if not body:
             LOG.warning('Something went wrong while formatting - received empty body')
         else:
-            routing_key = message.context.get("klat_data", {}).get("routing_key", 'neon_chat_api_response')
+            routing_key = message.context.get("mq",
+                                              {}).get("routing_key",
+                                                      'neon_chat_api_response')
+            LOG.debug(f"Got routing_key={routing_key}")
             self.send_message(request_data=body, queue=routing_key)
 
     def handle_neon_profile_update(self, message: Message):
@@ -170,14 +173,14 @@ class ChatAPIProxy(MQConnector):
             LOG.warning('No matching templates found, skipping template fetching')
             return '', msg_data
 
-        LOG.info('Initiating template validation')
+        LOG.debug('Initiating template validation')
         for message_template in message_templates:
             try:
                 msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
                 LOG.error(f'Failed to validate {msg_data} with template = {message_template.__name__}, exception={err}')
                 return str(err), msg_data
-        LOG.info('Template validation completed successfully')
+        LOG.debug('Template validation completed successfully')
         return '', msg_data
 
     @classmethod
@@ -223,28 +226,36 @@ class ChatAPIProxy(MQConnector):
                             properties: pika.spec.BasicProperties,
                             body: bytes):
         """
-            Transfers requests from MQ API to Neon Message Bus API
+        Transfers requests from MQ API to Neon Message Bus API
 
-            :param channel: MQ channel object (pika.channel.Channel)
-            :param method: MQ return method (pika.spec.Basic.Return)
-            :param properties: MQ properties (pika.spec.BasicProperties)
-            :param body: request body (bytes)
+        :param channel: MQ channel object (pika.channel.Channel)
+        :param method: MQ return method (pika.spec.Basic.Return)
+        :param properties: MQ properties (pika.spec.BasicProperties)
+        :param body: request body (bytes)
 
         """
         if body and isinstance(body, bytes):
             dict_data = b64_to_dict(body)
             LOG.info(f'Received user message: {dict_data}')
-            dict_data["context"].setdefault("mq", dict(routing_key=dict_data.pop('routing_key', ''),
-                                                       message_id=dict_data.pop('message_id', ''),
-                                                       cid=dict_data.pop('cid', ''),
-                                                       sid=dict_data.pop('sid', '')))
+            mq_context = {"routing_key": dict_data.pop('routing_key', ''),
+                          "message_id": dict_data.pop('message_id', '')}
+            klat_context = {"cid": dict_data.pop('cid', ''),
+                            "sid": dict_data.pop('sid', '')}
+            # Klat Context for backwards-compat
+            dict_data["context"].setdefault("mq",
+                                            {**mq_context, **klat_context})
+            dict_data["context"].setdefault("klat_data", klat_context)
 
             validation_error, dict_data = self.validate_request(dict_data)
             if validation_error:
-                response = Message(msg_type="klat.error",
-                                   data=dict(error=validation_error,
-                                             message=dict_data))
-                response.context.setdefault('klat_data', {})['routing_key'] = 'neon_chat_api_error'
+                LOG.error(f"Validation failed with: {validation_error}")
+                # Don't deserialize since this Message may be malformed
+                context = dict_data.pop("context")
+                response = Message("klat.error", {"error": validation_error,
+                                                  "data": dict_data},
+                                   context)
+                response.context['klat_data'].setdefault('routing_key',
+                                                         'neon_chat_api_error')
                 self.handle_neon_message(response)
             else:
                 # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
@@ -261,20 +272,22 @@ class ChatAPIProxy(MQConnector):
 
     def format_response(self, response_type: NeonResponseTypes, message: Message) -> dict:
         """
-            Formats received response by Neon API based on type
+        Formats received response by Neon API based on type
 
-            :param response_type: response type from NeonResponseTypes Enum
-            :param message: Neon MessageBus Message object
+        :param response_type: response type from NeonResponseTypes Enum
+        :param message: Neon MessageBus Message object
 
-            :returns formatted response dict
+        :returns formatted response dict
         """
         msg_error = message.data.get('error')
         if msg_error:
-            LOG.error(f'Failed to fetch data for context={message.context} - {msg_error}')
+            LOG.error(f'Failed to fetch data for context={message.context} - '
+                      f'{msg_error}')
             return {}
         timeout = self.response_timeouts.get(response_type, 30)
         if int(time.time()) - message.context.get('created_on', 0) > timeout:
-            LOG.warning(f'Message = {message} received timeout on {response_type} (>{timeout} seconds)')
+            LOG.warning(f'Message = {message} received timeout on '
+                        f'{response_type} (>{timeout} seconds)')
             response_data = {}
         else:
             if response_type == NeonResponseTypes.TTS:
@@ -294,7 +307,9 @@ class ChatAPIProxy(MQConnector):
                     LOG.info(f'transcript candidates received - {transcripts}')
                     response_data = {
                         'transcript': transcripts[0],
-                        'other_transcripts': [transcript for transcript in transcripts if transcript != transcripts[0]],
+                        'other_transcripts': [transcript for transcript in
+                                              transcripts if
+                                              transcript != transcripts[0]],
                         'lang': message.context.get('lang', 'en-us'),
                         'context': message.context
                     }
@@ -302,7 +317,7 @@ class ChatAPIProxy(MQConnector):
                     LOG.error('No transcripts received')
                     response_data = {}
             else:
-                LOG.warning(f'Failed to response response type -> {response_type}')
+                LOG.warning(f'Failed to response response type -> '
+                            f'{response_type}')
                 response_data = {}
-            # LOG.debug(f'Formatted {response_type} response data = {response_data}')
         return response_data
