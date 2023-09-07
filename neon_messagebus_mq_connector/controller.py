@@ -25,13 +25,14 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 import time
+import pika
+
 from typing import List, Type, Tuple
 
-import pika
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
-
 from ovos_utils.log import LOG, log_deprecation
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
@@ -39,13 +40,14 @@ from neon_mq_connector.connector import MQConnector
 from pika.channel import Channel
 from pydantic import ValidationError
 
-from .enums import NeonResponseTypes
-from .messages import templates, BaseModel
+from neon_messagebus_mq_connector.enums import NeonResponseTypes
+from neon_messagebus_mq_connector.messages import templates, BaseModel
 
 
 class ChatAPIProxy(MQConnector):
     """
-    Proxy module for establishing connection between PyKlatchat and neon chat api"""
+    Proxy module for establishing connection between Neon Core and an MQ Broker
+    """
 
     def __init__(self, config: dict, service_name: str):
         config = config or Configuration()
@@ -55,7 +57,7 @@ class ChatAPIProxy(MQConnector):
         if config.get("MESSAGEBUS"):
             log_deprecation("MESSAGEBUS config is deprecated. use `websocket`",
                             "1.0.0")
-            self.bus_config = config.get("websocket")
+            self.bus_config = config.get("MESSAGEBUS")
         self._vhost = '/neon_chat_api'
         self._bus = None
         self.connect_bus()
@@ -89,9 +91,8 @@ class ChatAPIProxy(MQConnector):
 
     def connect_bus(self, refresh: bool = False):
         """
-            Convenience method for establishing connection to message bus
-
-            :param refresh: To refresh existing connection
+        Convenience method for establishing connection to message bus
+        :param refresh: To refresh existing connection
         """
         if not self._bus or refresh:
             self._bus = MessageBusClient(host=self.bus_config['host'],
@@ -105,9 +106,8 @@ class ChatAPIProxy(MQConnector):
     @property
     def bus(self) -> MessageBusClient:
         """
-            Connects to Message Bus if no connection was established
-
-            :return: connected message bus client instance
+        Connects to Message Bus if no connection was established
+        :return: connected message bus client instance
         """
         if not self._bus:
             self.connect_bus()
@@ -115,26 +115,31 @@ class ChatAPIProxy(MQConnector):
 
     def handle_neon_message(self, message: Message):
         """
-            Handles responses from Neon Core
-
-            :param message: Received Message object
+        Handles responses from Neon Core, optionally reformatting response data
+        before forwarding to the MQ bus.
+        :param message: Received Message object
         """
 
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat_data', {})
         if message.msg_type == 'neon.get_tts.response':
-            body = self.format_response(response_type=NeonResponseTypes.TTS, message=message)
-            message.context['klat_data'].setdefault('routing_key', 'neon_tts_response')
+            body = self.format_response(response_type=NeonResponseTypes.TTS,
+                                        message=message)
+            message.context['klat_data'].setdefault('routing_key',
+                                                    'neon_tts_response')
         elif message.msg_type == 'neon.get_stt.response':
-            body = self.format_response(response_type=NeonResponseTypes.STT, message=message)
-            message.context['klat_data'].setdefault('routing_key', 'neon_stt_response')
+            body = self.format_response(response_type=NeonResponseTypes.STT,
+                                        message=message)
+            message.context['klat_data'].setdefault('routing_key',
+                                                    'neon_stt_response')
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
         LOG.debug(f'Received neon response body: {body}')
         if not body:
-            LOG.warning('Something went wrong while formatting - received empty body')
+            LOG.warning('Something went wrong while formatting - '
+                        f'received empty body for {message.msg_type}')
         else:
             routing_key = message.context.get("mq",
                                               {}).get("routing_key",
@@ -157,20 +162,24 @@ class ChatAPIProxy(MQConnector):
                       f"user={message.data['profile']['user']['username']}")
 
     @staticmethod
-    def __validate_message_templates(msg_data: dict, message_templates: List[Type[BaseModel]] = None) -> Tuple[str, dict]:
+    def __validate_message_templates(
+            msg_data: dict,
+            message_templates: List[Type[BaseModel]] = None) \
+            -> Tuple[str, dict]:
         """
-            Validate selected pydantic message templates into provided message data
+        Validate selected pydantic message templates into provided message data
 
-            :param msg_data: Message data to fetch
-            :param message_templates: list of pydantic templates to fetch into data
+        :param msg_data: Message data to fetch
+        :param message_templates: list of pydantic templates to fetch into data
 
-            :returns tuple containing 2 values:
-                     1) validation error if detected;
-                     2) fetched message data;
+        :returns tuple containing 2 values:
+                 1) validation error if detected;
+                 2) fetched message data;
         """
 
         if not message_templates:
-            LOG.warning('No matching templates found, skipping template fetching')
+            LOG.warning('No matching templates found, '
+                        'skipping template fetching')
             return '', msg_data
 
         LOG.debug('Initiating template validation')
@@ -178,7 +187,8 @@ class ChatAPIProxy(MQConnector):
             try:
                 msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
-                LOG.error(f'Failed to validate {msg_data} with template = {message_template.__name__}, exception={err}')
+                LOG.error(f'Failed to validate {msg_data} with template = '
+                          f'{message_template.__name__}, exception={err}')
                 return str(err), msg_data
         LOG.debug('Template validation completed successfully')
         return '', msg_data
@@ -186,38 +196,58 @@ class ChatAPIProxy(MQConnector):
     @classmethod
     def validate_request(cls, msg_data: dict):
         """
-            Fetches the relevant template models and validates provided message data iteratively through them
+        Fetches the relevant template models and validates provided message data
+        iteratively through them
 
-            :param msg_data: message data for validation
+        :param msg_data: message data for validation
 
-            :return: validation details(None if validation passed),
-                     input data with proper data types and filled default fields
+        :return: validation details(None if validation passed),
+                 input data with proper data types and filled default fields
         """
+        msg_type = msg_data.get('msg_type')
+        if msg_type == "neon.get_stt":
+            message_templates = [templates.get("stt")]
+        elif msg_type == "neon.audio_input":
+            message_templates = [templates.get("audio_input")]
+        elif msg_type == "recognizer_loop:utterance":
+            message_templates = [templates.get("recognizer")]
+        elif msg_type == "neon.get_tts":
+            message_templates = [templates.get("tts")]
+        elif msg_data.get("context", {}).get("request_skills"):
+            LOG.warning(f"Unknown input message type: {msg_type}")
+            requested_templates = msg_data["context"]["request_skills"]
+            message_templates = []
 
-        requested_templates = msg_data.get("context", {}).get("request_skills") or ["recognizer"]
-        message_templates = []
-
-        for requested_template in requested_templates:
-            matching_template_model = templates.get(requested_template)
-            if not matching_template_model:
-                LOG.warning(f'Template under keyword "{requested_template}" does not exist')
-            else:
-                message_templates.append(matching_template_model)
-
-        detected_error, msg_data = cls.__validate_message_templates(msg_data=msg_data,
-                                                                    message_templates=message_templates)
+            for requested_template in requested_templates:
+                matching_template_model = templates.get(requested_template)
+                if not matching_template_model:
+                    LOG.warning(f'Template under keyword '
+                                f'"{requested_template}" does not exist')
+                else:
+                    message_templates.append(matching_template_model)
+        else:
+            raise ValueError(f"Unable to validate input message: {msg_data}")
+        detected_error, msg_data = cls.__validate_message_templates(
+            msg_data=msg_data, message_templates=message_templates)
         return detected_error, msg_data
 
-    def validate_message_context(self, message: Message) -> bool:
-        """ Validates message context so its relevant data could be fetched once received response """
+    @staticmethod
+    def validate_message_context(message: Message) -> bool:
+        """
+        Validates message context so its relevant data could be fetched once
+        a response is received
+        """
         message_id = message.context.get('mq', {}).get('message_id')
         if not message_id:
-            LOG.warning('Message context validation failed - message_id is None')
+            LOG.warning('Message context validation failed - '
+                        'message.context["mq"]["message_id"] is None')
             return False
         else:
             message.context['created_on'] = int(time.time())
             if message.msg_type == 'neon.get_stt':
-                message.context['lang'] = message.data.get('lang')
+                if message.context.get('lang') != message.data.get('lang'):
+                    LOG.warning("Context lang does not match data!")
+                    message.context['lang'] = message.data.get('lang')
         return True
 
     def handle_user_message(self,
@@ -245,8 +275,13 @@ class ChatAPIProxy(MQConnector):
             dict_data["context"].setdefault("mq",
                                             {**mq_context, **klat_context})
             dict_data["context"].setdefault("klat_data", klat_context)
-
-            validation_error, dict_data = self.validate_request(dict_data)
+            # TODO: Consider merging this context instead of `setdefault` so
+            #       expected keys are always present
+            try:
+                validation_error, dict_data = self.validate_request(dict_data)
+            except ValueError as e:
+                LOG.error(e)
+                validation_error = True
             if validation_error:
                 LOG.error(f"Validation failed with: {validation_error}")
                 # Don't deserialize since this Message may be malformed
@@ -258,21 +293,23 @@ class ChatAPIProxy(MQConnector):
                                                          'neon_chat_api_error')
                 self.handle_neon_message(response)
             else:
-                # dict_data["context"].setdefault('ident', f"{dict_data['msg_type']}.response")
                 message = Message(**dict_data)
                 is_context_valid = self.validate_message_context(message)
                 if is_context_valid:
                     self.bus.emit(message)
                 else:
-                    LOG.error(f'Message context is invalid - {message} is not emitted')
+                    LOG.error(f'Message context is invalid - '
+                              f'{message.context["mq"]["message_id"]} '
+                              f'is not emitted')
         else:
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
                             f' got: {type(body)}')
 
-    def format_response(self, response_type: NeonResponseTypes, message: Message) -> dict:
+    def format_response(self, response_type: NeonResponseTypes,
+                        message: Message) -> dict:
         """
-        Formats received response by Neon API based on type
+        Reformat received response by Neon API for Klat based on type
 
         :param response_type: response type from NeonResponseTypes Enum
         :param message: Neon MessageBus Message object
@@ -303,19 +340,15 @@ class ChatAPIProxy(MQConnector):
                 }
             elif response_type == NeonResponseTypes.STT:
                 transcripts = message.data.get('transcripts', [''])
-                if transcripts and transcripts[0]:
-                    LOG.info(f'transcript candidates received - {transcripts}')
-                    response_data = {
-                        'transcript': transcripts[0],
-                        'other_transcripts': [transcript for transcript in
-                                              transcripts if
-                                              transcript != transcripts[0]],
-                        'lang': message.context.get('lang', 'en-us'),
-                        'context': message.context
-                    }
-                else:
-                    LOG.error('No transcripts received')
-                    response_data = {}
+                LOG.info(f'transcript candidates received - {transcripts}')
+                response_data = {
+                    'transcript': transcripts[0],
+                    'other_transcripts': [transcript for transcript in
+                                          transcripts if
+                                          transcript != transcripts[0]],
+                    'lang': message.context.get('lang', 'en-us'),
+                    'context': message.context
+                }
             else:
                 LOG.warning(f'Failed to response response type -> '
                             f'{response_type}')
