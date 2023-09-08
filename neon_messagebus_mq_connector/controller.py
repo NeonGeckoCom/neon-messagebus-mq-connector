@@ -182,12 +182,12 @@ class ChatAPIProxy(MQConnector):
                         'skipping template fetching')
             return '', msg_data
 
-        LOG.debug('Initiating template validation')
+        LOG.debug(f'Initiating template validation with {message_templates}')
         for message_template in message_templates:
             try:
                 msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
-                LOG.error(f'Failed to validate {msg_data} with template = '
+                LOG.error(f'Failed to validate {msg_data["msg_type"]} with template = '
                           f'{message_template.__name__}, exception={err}')
                 return str(err), msg_data
         LOG.debug('Template validation completed successfully')
