@@ -59,6 +59,22 @@ class RecognizerMessage(BaseModel):
                           )
 
 
+class AudioInput(BaseModel):
+    msg_type: str = "neon.audio_input"
+    data: create_model("Data",
+                       audio_data=(str, ...),
+                       lang=(str, ...),
+                       __base__=BaseModel,
+                       )
+    context: create_model("Context",
+                          source=(str, "mq_api"),
+                          destination=(list, ["speech"]),
+                          username=(str, "guest"),
+                          user_profiles=(list, []),
+                          __base__=BaseModel,
+                          )
+
+
 class STTMessage(BaseModel):
     msg_type: str = "neon.get_stt"
     data: create_model("Data",
@@ -90,5 +106,6 @@ class TTSMessage(BaseModel):
 templates = {
     "stt": STTMessage,
     "tts": TTSMessage,
+    "audio_input": AudioInput,
     "recognizer": RecognizerMessage,
 }
