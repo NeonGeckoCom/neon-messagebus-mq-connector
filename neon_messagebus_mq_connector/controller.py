@@ -34,6 +34,8 @@ from typing import List, Type, Tuple
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
 from ovos_utils.log import LOG, log_deprecation
+
+from neon_utils.metrics_utils import Stopwatch
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
 from neon_mq_connector.connector import MQConnector
@@ -119,33 +121,37 @@ class ChatAPIProxy(MQConnector):
         before forwarding to the MQ bus.
         :param message: Received Message object
         """
-
+        _stopwatch = Stopwatch()
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat_data', {})
-        if message.msg_type == 'neon.get_tts.response':
-            body = self.format_response(response_type=NeonResponseTypes.TTS,
-                                        message=message)
-            message.context['klat_data'].setdefault('routing_key',
-                                                    'neon_tts_response')
-        elif message.msg_type == 'neon.get_stt.response':
-            body = self.format_response(response_type=NeonResponseTypes.STT,
-                                        message=message)
-            message.context['klat_data'].setdefault('routing_key',
-                                                    'neon_stt_response')
-        else:
-            body = {'msg_type': message.msg_type,
-                    'data': message.data, 'context': message.context}
-        LOG.debug(f'Received neon response body: {body}')
+        with _stopwatch:
+            if message.msg_type == 'neon.get_tts.response':
+                body = self.format_response(response_type=NeonResponseTypes.TTS,
+                                            message=message)
+                message.context['klat_data'].setdefault('routing_key',
+                                                        'neon_tts_response')
+            elif message.msg_type == 'neon.get_stt.response':
+                body = self.format_response(response_type=NeonResponseTypes.STT,
+                                            message=message)
+                message.context['klat_data'].setdefault('routing_key',
+                                                        'neon_stt_response')
+            else:
+                body = {'msg_type': message.msg_type,
+                        'data': message.data, 'context': message.context}
+        LOG.debug(f'Received neon response body: {body} in {_stopwatch.time}s')
         if not body:
             LOG.warning('Something went wrong while formatting - '
                         f'received empty body for {message.msg_type}')
-        else:
-            routing_key = message.context.get("mq",
-                                              {}).get("routing_key",
-                                                      'neon_chat_api_response')
-            LOG.debug(f"Got routing_key={routing_key}")
-            self.send_message(request_data=body, queue=routing_key)
+            return
+
+        body['context'].setdefault("timing", dict())
+        body['context']['timing']['mq_format_response'] = _stopwatch.time
+        routing_key = message.context.get("mq",
+                                          {}).get("routing_key",
+                                                  'neon_chat_api_response')
+        LOG.debug(f"Got routing_key={routing_key}")
+        self.send_message(request_data=body, queue=routing_key)
 
     def handle_neon_profile_update(self, message: Message):
         """
@@ -264,47 +270,57 @@ class ChatAPIProxy(MQConnector):
         :param body: request body (bytes)
 
         """
-        if body and isinstance(body, bytes):
-            dict_data = b64_to_dict(body)
-            LOG.info(f'Received user message: {dict_data}')
-            mq_context = {"routing_key": dict_data.pop('routing_key', ''),
-                          "message_id": dict_data.pop('message_id', '')}
-            klat_context = {"cid": dict_data.pop('cid', ''),
-                            "sid": dict_data.pop('sid', '')}
-            # Klat Context for backwards-compat
-            dict_data["context"].setdefault("mq",
-                                            {**mq_context, **klat_context})
-            dict_data["context"].setdefault("klat_data", klat_context)
-            # TODO: Consider merging this context instead of `setdefault` so
-            #       expected keys are always present
-            try:
-                validation_error, dict_data = self.validate_request(dict_data)
-            except ValueError as e:
-                LOG.error(e)
-                validation_error = True
-            if validation_error:
-                LOG.error(f"Validation failed with: {validation_error}")
-                # Don't deserialize since this Message may be malformed
-                context = dict_data.pop("context")
-                response = Message("klat.error", {"error": validation_error,
-                                                  "data": dict_data},
-                                   context)
-                response.context['klat_data'].setdefault('routing_key',
-                                                         'neon_chat_api_error')
-                self.handle_neon_message(response)
-            else:
-                message = Message(**dict_data)
-                is_context_valid = self.validate_message_context(message)
-                if is_context_valid:
-                    self.bus.emit(message)
-                else:
-                    LOG.error(f'Message context is invalid - '
-                              f'{message.context["mq"]["message_id"]} '
-                              f'is not emitted')
-        else:
+        if not isinstance(body, bytes):
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
                             f' got: {type(body)}')
+        _stopwatch = Stopwatch()
+        with _stopwatch:
+            dict_data = b64_to_dict(body)
+        LOG.debug(f"Deserialized in {_stopwatch.time}s")
+        LOG.info(f'Received user message: {dict_data}')
+        mq_context = {"routing_key": dict_data.pop('routing_key', ''),
+                      "message_id": dict_data.pop('message_id', '')}
+        klat_context = {"cid": dict_data.pop('cid', ''),
+                        "sid": dict_data.pop('sid', '')}
+        # Klat Context for backwards-compat
+        dict_data["context"].setdefault("mq",
+                                        {**mq_context, **klat_context})
+        dict_data["context"].setdefault("klat_data", klat_context)
+        # TODO: Consider merging this context instead of `setdefault` so
+        #       expected keys are always present
+
+        # Add timing metrics
+        dict_data["context"].setdefault("timing", dict())
+        dict_data["context"]["timing"]["mq_input_deserialize"] = _stopwatch.time
+        try:
+            with _stopwatch:
+                validation_error, dict_data = self.validate_request(dict_data)
+            LOG.debug(f"Validated in {_stopwatch.time}s")
+            dict_data["context"]["timing"]["mq_input_validate"] = _stopwatch.time
+        except ValueError as e:
+            LOG.error(e)
+            validation_error = True
+        if validation_error:
+            LOG.error(f"Validation failed with: {validation_error}")
+            # Don't deserialize since this Message may be malformed
+            context = dict_data.pop("context")
+            response = Message("klat.error", {"error": validation_error,
+                                              "data": dict_data},
+                               context)
+            response.context['klat_data'].setdefault('routing_key',
+                                                     'neon_chat_api_error')
+            self.handle_neon_message(response)
+        else:
+            message = Message(**dict_data)
+            # TODO: Move context validation to request validation
+            is_context_valid = self.validate_message_context(message)
+            if is_context_valid:
+                self.bus.emit(message)
+            else:
+                LOG.error(f'Message context is invalid - '
+                          f'{message.context["mq"]["message_id"]} '
+                          f'is not emitted')
 
     def format_response(self, response_type: NeonResponseTypes,
                         message: Message) -> dict:
