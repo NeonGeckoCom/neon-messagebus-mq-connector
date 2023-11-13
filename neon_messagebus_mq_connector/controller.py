@@ -121,6 +121,7 @@ class ChatAPIProxy(MQConnector):
         before forwarding to the MQ bus.
         :param message: Received Message object
         """
+        response_handled = time.time()
         _stopwatch = Stopwatch()
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
@@ -146,14 +147,18 @@ class ChatAPIProxy(MQConnector):
             return
 
         body['context'].setdefault("timing", dict())
+        if body['context']['timing'].get("response_sent"):
+            body['context']['timing']['mq_from_core'] = response_handled - \
+                body['context']['timing']['response_sent']
         body['context']['timing']['mq_format_response'] = _stopwatch.time
         routing_key = message.context.get("mq",
                                           {}).get("routing_key",
                                                   'neon_chat_api_response')
         with _stopwatch:
+            # This takes on the order of ~=0.04s
             self.send_message(request_data=body, queue=routing_key)
-        LOG.debug(f"Sent message with routing_key={routing_key} "
-                  f"in {_stopwatch.time}s")
+        LOG.debug(f"Sent message in {_stopwatch.time}s "
+                  f"with routing_key={routing_key}")
 
     def handle_neon_profile_update(self, message: Message):
         """
