@@ -150,8 +150,10 @@ class ChatAPIProxy(MQConnector):
         routing_key = message.context.get("mq",
                                           {}).get("routing_key",
                                                   'neon_chat_api_response')
-        LOG.debug(f"Got routing_key={routing_key}")
-        self.send_message(request_data=body, queue=routing_key)
+        with _stopwatch:
+            self.send_message(request_data=body, queue=routing_key)
+        LOG.debug(f"Sent message with routing_key={routing_key} "
+                  f"in {_stopwatch.time}s")
 
     def handle_neon_profile_update(self, message: Message):
         """
