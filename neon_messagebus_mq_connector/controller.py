@@ -270,6 +270,7 @@ class ChatAPIProxy(MQConnector):
         :param body: request body (bytes)
 
         """
+        input_received = time.time()
         if not isinstance(body, bytes):
             channel.basic_nack()
             raise TypeError(f'Invalid body received, expected: bytes string;'
@@ -292,11 +293,16 @@ class ChatAPIProxy(MQConnector):
 
         # Add timing metrics
         dict_data["context"].setdefault("timing", dict())
+        # Should be negligible, 10^-4
         dict_data["context"]["timing"]["mq_input_deserialize"] = _stopwatch.time
+        if dict_data["context"]["timing"].get("client_sent"):
+            dict_data["context"]["timing"]["mq_input_bus_time"] = \
+                input_received - dict_data["context"]["timing"]["client_sent"]
         try:
             with _stopwatch:
                 validation_error, dict_data = self.validate_request(dict_data)
             LOG.debug(f"Validated in {_stopwatch.time}s")
+            # Should be negligible, 10^-3
             dict_data["context"]["timing"]["mq_input_validate"] = _stopwatch.time
         except ValueError as e:
             LOG.error(e)
