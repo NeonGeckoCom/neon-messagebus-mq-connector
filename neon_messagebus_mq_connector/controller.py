@@ -123,24 +123,25 @@ class ChatAPIProxy(MQConnector):
         """
         response_handled = time.time()
         _stopwatch = Stopwatch()
+        _stopwatch.start()
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat_data', {})
-        with _stopwatch:
-            if message.msg_type == 'neon.get_tts.response':
-                body = self.format_response(response_type=NeonResponseTypes.TTS,
-                                            message=message)
-                message.context['klat_data'].setdefault('routing_key',
-                                                        'neon_tts_response')
-            elif message.msg_type == 'neon.get_stt.response':
-                body = self.format_response(response_type=NeonResponseTypes.STT,
-                                            message=message)
-                message.context['klat_data'].setdefault('routing_key',
-                                                        'neon_stt_response')
-            else:
-                body = {'msg_type': message.msg_type,
-                        'data': message.data, 'context': message.context}
+        if message.msg_type == 'neon.get_tts.response':
+            body = self.format_response(response_type=NeonResponseTypes.TTS,
+                                        message=message)
+            message.context['klat_data'].setdefault('routing_key',
+                                                    'neon_tts_response')
+        elif message.msg_type == 'neon.get_stt.response':
+            body = self.format_response(response_type=NeonResponseTypes.STT,
+                                        message=message)
+            message.context['klat_data'].setdefault('routing_key',
+                                                    'neon_stt_response')
+        else:
+            body = {'msg_type': message.msg_type,
+                    'data': message.data, 'context': message.context}
         LOG.debug(f'Received neon response body: {body} in {_stopwatch.time}s')
+        _stopwatch.stop()
         if not body:
             LOG.warning('Something went wrong while formatting - '
                         f'received empty body for {message.msg_type}')
@@ -150,7 +151,7 @@ class ChatAPIProxy(MQConnector):
         if body['context']['timing'].get("response_sent"):
             body['context']['timing']['mq_from_core'] = response_handled - \
                 body['context']['timing']['response_sent']
-        body['context']['timing']['mq_format_response'] = _stopwatch.time
+        body['context']['timing']['mq_response_handler'] = _stopwatch.time
         routing_key = message.context.get("mq",
                                           {}).get("routing_key",
                                                   'neon_chat_api_response')
@@ -302,7 +303,7 @@ class ChatAPIProxy(MQConnector):
         # Add timing metrics
         dict_data["context"].setdefault("timing", dict())
         if dict_data["context"]["timing"].get("client_sent"):
-            dict_data["context"]["timing"]["mq_input_bus_time"] = \
+            dict_data["context"]["timing"]["mq_from_client"] = \
                 input_received - dict_data["context"]["timing"]["client_sent"]
         try:
             validation_error, dict_data = self.validate_request(dict_data)
