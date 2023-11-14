@@ -154,11 +154,10 @@ class ChatAPIProxy(MQConnector):
         routing_key = message.context.get("mq",
                                           {}).get("routing_key",
                                                   'neon_chat_api_response')
-        with _stopwatch:
-            # This takes on the order of ~=0.04s
-            self.send_message(request_data=body, queue=routing_key)
-        LOG.debug(f"Sent message in {_stopwatch.time}s "
-                  f"with routing_key={routing_key}")
+
+        # This takes on the order of ~=0.04s
+        self.send_message(request_data=body, queue=routing_key)
+        LOG.debug(f"Sent message with routing_key={routing_key}")
 
     def handle_neon_profile_update(self, message: Message):
         """
@@ -283,8 +282,8 @@ class ChatAPIProxy(MQConnector):
             raise TypeError(f'Invalid body received, expected: bytes string;'
                             f' got: {type(body)}')
         _stopwatch = Stopwatch()
-        with _stopwatch:
-            dict_data = b64_to_dict(body)
+        _stopwatch.start()
+        dict_data = b64_to_dict(body)
         LOG.debug(f"Deserialized in {_stopwatch.time}s")
         LOG.info(f'Received user message: {dict_data["msg_type"]}|'
                  f'data={dict_data["data"].keys()}|'
@@ -302,20 +301,18 @@ class ChatAPIProxy(MQConnector):
 
         # Add timing metrics
         dict_data["context"].setdefault("timing", dict())
-        # Should be negligible, 10^-4
-        dict_data["context"]["timing"]["mq_input_deserialize"] = _stopwatch.time
         if dict_data["context"]["timing"].get("client_sent"):
             dict_data["context"]["timing"]["mq_input_bus_time"] = \
                 input_received - dict_data["context"]["timing"]["client_sent"]
         try:
-            with _stopwatch:
-                validation_error, dict_data = self.validate_request(dict_data)
-            LOG.debug(f"Validated in {_stopwatch.time}s")
-            # Should be negligible, 10^-3
-            dict_data["context"]["timing"]["mq_input_validate"] = _stopwatch.time
+            validation_error, dict_data = self.validate_request(dict_data)
         except ValueError as e:
             LOG.error(e)
             validation_error = True
+
+        _stopwatch.stop()
+        LOG.debug(f"Input handled in {_stopwatch.time}s")
+        dict_data["context"]["timing"]["mq_input_handler"] = _stopwatch.time
         if validation_error:
             LOG.error(f"Validation failed with: {validation_error}")
             # Don't deserialize since this Message may be malformed
