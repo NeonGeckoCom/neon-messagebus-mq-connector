@@ -286,7 +286,9 @@ class ChatAPIProxy(MQConnector):
         with _stopwatch:
             dict_data = b64_to_dict(body)
         LOG.debug(f"Deserialized in {_stopwatch.time}s")
-        LOG.info(f'Received user message: {dict_data}')
+        LOG.info(f'Received user message: {dict_data["msg_type"]}|'
+                 f'data={dict_data["data"].keys()}|'
+                 f'context={dict_data["context"].keys()}')
         mq_context = {"routing_key": dict_data.pop('routing_key', ''),
                       "message_id": dict_data.pop('message_id', '')}
         klat_context = {"cid": dict_data.pop('cid', ''),
