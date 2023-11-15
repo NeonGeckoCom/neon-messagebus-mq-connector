@@ -86,8 +86,10 @@ class ChatAPIProxy(MQConnector):
         """Convenience method to gather message bus handlers"""
         self._bus.on('klat.response', self.handle_neon_message)
         self._bus.on('complete.intent.failure', self.handle_neon_message)
+        self._bus.on('intent_aborted', self.handle_neon_message)
         self._bus.on('neon.profile_update', self.handle_neon_profile_update)
         self._bus.on('neon.clear_data', self.handle_neon_message)
+        self._bus.on('neon.audio_input.response', self.handle_neon_message)
         self._bus.on('neon.get_tts.response', self.handle_neon_message)
         self._bus.on('neon.get_stt.response', self.handle_neon_message)
 
@@ -327,13 +329,29 @@ class ChatAPIProxy(MQConnector):
         else:
             message = Message(**dict_data)
             # TODO: Move context validation to request validation
-            is_context_valid = self.validate_message_context(message)
-            if is_context_valid:
-                self.bus.emit(message)
-            else:
+            if not self.validate_message_context(message):
                 LOG.error(f'Message context is invalid - '
                           f'{message.context["mq"]["message_id"]} '
                           f'is not emitted')
+                return
+
+            if message.context.get('ident'):
+                # If there's an ident in context, API methods will emit that.
+                # This isn't explicitly defined but `get_stt`, `get_tts`, and
+                # `audio_input` use this pattern to associate responses with the
+                # original request.
+                resp = self.bus.wait_for_response(message,
+                                                  message.context['ident'], 30)
+                if resp:
+                    # Override msg_type for handler; context contains routing
+                    resp.msg_type = f"{message.msg_type}.response"
+                    self.handle_neon_message(resp)
+            else:
+                # No ident means we'll get a plain `msg_type.response` which has
+                # a handler already registered. `wait_for_response` is not used
+                # because multiple concurrent requests can cause responses to be
+                # disassociated with the request message.
+                self.bus.emit(message)
 
     def format_response(self, response_type: NeonResponseTypes,
                         message: Message) -> dict:
@@ -355,31 +373,30 @@ class ChatAPIProxy(MQConnector):
             LOG.warning(f'Message = {message} received timeout on '
                         f'{response_type} (>{timeout} seconds)')
             response_data = {}
-        else:
-            if response_type == NeonResponseTypes.TTS:
-                lang = list(message.data)[0]
-                gender = message.data[lang].get('genders', ['female'])[0]
-                audio_data_b64 = message.data[lang]['audio'][gender]
+        elif response_type == NeonResponseTypes.TTS:
+            lang = list(message.data)[0]
+            gender = message.data[lang].get('genders', ['female'])[0]
+            audio_data_b64 = message.data[lang]['audio'][gender]
 
-                response_data = {
-                    'audio_data': audio_data_b64,
-                    'lang': lang,
-                    'gender': gender,
-                    'context': message.context
-                }
-            elif response_type == NeonResponseTypes.STT:
-                transcripts = message.data.get('transcripts', [''])
-                LOG.info(f'transcript candidates received - {transcripts}')
-                response_data = {
-                    'transcript': transcripts[0],
-                    'other_transcripts': [transcript for transcript in
-                                          transcripts if
-                                          transcript != transcripts[0]],
-                    'lang': message.context.get('lang', 'en-us'),
-                    'context': message.context
-                }
-            else:
-                LOG.warning(f'Failed to response response type -> '
-                            f'{response_type}')
-                response_data = {}
+            response_data = {
+                'audio_data': audio_data_b64,
+                'lang': lang,
+                'gender': gender,
+                'context': message.context
+            }
+        elif response_type == NeonResponseTypes.STT:
+            transcripts = message.data.get('transcripts', [''])
+            LOG.info(f'transcript candidates received - {transcripts}')
+            response_data = {
+                'transcript': transcripts[0],
+                'other_transcripts': [transcript for transcript in
+                                      transcripts if
+                                      transcript != transcripts[0]],
+                'lang': message.context.get('lang', 'en-us'),
+                'context': message.context
+            }
+        else:
+            LOG.warning(f'Failed to response response type -> '
+                        f'{response_type}')
+            response_data = {}
         return response_data
