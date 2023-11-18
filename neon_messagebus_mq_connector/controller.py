@@ -129,16 +129,15 @@ class ChatAPIProxy(MQConnector):
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat_data', {})
+        message.context.setdefault('mq', {})
         if message.msg_type == 'neon.get_tts.response':
             body = self.format_response(response_type=NeonResponseTypes.TTS,
                                         message=message)
-            message.context['klat_data'].setdefault('routing_key',
-                                                    'neon_tts_response')
+            message.context['mq'].setdefault('routing_key', 'neon_tts_response')
         elif message.msg_type == 'neon.get_stt.response':
             body = self.format_response(response_type=NeonResponseTypes.STT,
                                         message=message)
-            message.context['klat_data'].setdefault('routing_key',
-                                                    'neon_stt_response')
+            message.context['mq'].setdefault('routing_key', 'neon_stt_response')
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
@@ -168,7 +167,7 @@ class ChatAPIProxy(MQConnector):
         to avoid publishing private profile values to a shared queue
         :param message: Message containing the updated user profile
         """
-        if message.context.get('klat_data', {}).get('routing_key'):
+        if message.context.get('mq', {}).get('routing_key'):
             LOG.info(f"handling profile update for "
                      f"user={message.data['profile']['user']['username']}")
             self.handle_neon_message(message)
