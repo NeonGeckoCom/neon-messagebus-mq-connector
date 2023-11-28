@@ -34,7 +34,7 @@ from typing import List, Type, Tuple
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
 from ovos_utils.log import LOG, log_deprecation
-
+from ovos_utils import create_daemon
 from neon_utils.metrics_utils import Stopwatch
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
@@ -342,12 +342,8 @@ class ChatAPIProxy(MQConnector):
                 # This isn't explicitly defined but `get_stt`, `get_tts`, and
                 # `audio_input` use this pattern to associate responses with the
                 # original request.
-                resp = self.bus.wait_for_response(message,
-                                                  message.context['ident'], 30)
-                if resp:
-                    # Override msg_type for handler; context contains routing
-                    resp.msg_type = f"{message.msg_type}.response"
-                    self.handle_neon_message(resp)
+                create_daemon(self._get_messagebus_response, args=(message,),
+                              autostart=True)
             else:
                 # No ident means we'll get a plain `msg_type.response` which has
                 # a handler already registered. `wait_for_response` is not used
@@ -355,6 +351,22 @@ class ChatAPIProxy(MQConnector):
                 # disassociated with the request message.
                 self.bus.emit(message)
         LOG.debug("Handler Complete")
+
+    def _get_messagebus_response(self, message: Message):
+        """
+        Helper method to get a response on the Messagebus that can be threaded
+        so as not to block MQ handling.
+        @param message: Message object to get a response for
+        """
+        resp = self.bus.wait_for_response(message,
+                                          message.context['ident'], 30)
+        if resp:
+            # Override msg_type for handler; context contains routing
+            resp.msg_type = f"{message.msg_type}.response"
+            self.handle_neon_message(resp)
+        else:
+            # TODO: Is this a warning or just info/debug?
+            LOG.warning(f"No response to: {message.msg_type}")
 
     def format_response(self, response_type: NeonResponseTypes,
                         message: Message) -> dict:
