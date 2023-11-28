@@ -92,6 +92,10 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('neon.audio_input.response', self.handle_neon_message)
         self._bus.on('neon.get_tts.response', self.handle_neon_message)
         self._bus.on('neon.get_stt.response', self.handle_neon_message)
+        self._bus.on('ovos.languages.stt.response', self.handle_neon_message)
+        self._bus.on('ovos.languages.tts.response', self.handle_neon_message)
+        self._bus.on('neon.languages.skills.response', self.handle_neon_message)
+        self._bus.on('neon.languages.get.response', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -173,6 +177,7 @@ class ChatAPIProxy(MQConnector):
                      f"user={message.data['profile']['user']['username']}")
             self.handle_neon_message(message)
         else:
+            # No mq context means this is probably local
             LOG.debug(f"ignoring profile update for "
                       f"user={message.data['profile']['user']['username']}")
 
@@ -228,7 +233,12 @@ class ChatAPIProxy(MQConnector):
             message_templates = [templates.get("recognizer")]
         elif msg_type == "neon.get_tts":
             message_templates = [templates.get("tts")]
+        elif msg_type in ("ovos.languages.stt", "ovos.languages.tts",
+                          "neon.languages.skills", "neon.languages.get"):
+            # These have no expected data
+            return "", msg_data
         elif msg_data.get("context", {}).get("request_skills"):
+            # TODO: This context isn't referenced anywhere in core. Deprecate?
             LOG.warning(f"Unknown input message type: {msg_type}")
             requested_templates = msg_data["context"]["request_skills"]
             message_templates = []
@@ -337,11 +347,11 @@ class ChatAPIProxy(MQConnector):
                 return
 
             if message.context.get('ident') and \
-                    message.msg_type != "recognizer_loop:utterance":
+                    message.msg_type in ("neon.get_stt", "neon.get_tts",
+                                         "neon.audio_input"):
                 # If there's an ident in context, API methods will emit that.
-                # This isn't explicitly defined but `get_stt`, `get_tts`, and
-                # `audio_input` use this pattern to associate responses with the
-                # original request.
+                # This isn't explicitly defined but  this pattern is often used
+                # to associate responses with the original request.
                 create_daemon(self._get_messagebus_response, args=(message,),
                               autostart=True)
             else:
