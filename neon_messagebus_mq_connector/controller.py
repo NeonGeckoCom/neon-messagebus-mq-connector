@@ -242,7 +242,7 @@ class ChatAPIProxy(MQConnector):
         elif msg_type == "neon.get_tts":
             message_templates = [templates.get("tts")]
         elif msg_type in ("ovos.languages.stt", "ovos.languages.tts",
-                          "neon.languages.skills"):
+                          "neon.languages.skills", "neon.languages.get"):
             # These have no expected data
             return "", msg_data
         elif msg_data.get("context", {}).get("request_skills"):
