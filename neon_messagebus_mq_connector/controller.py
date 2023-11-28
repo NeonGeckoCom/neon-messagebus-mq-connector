@@ -67,14 +67,14 @@ class ChatAPIProxy(MQConnector):
                                vhost=self.vhost,
                                queue=f'neon_chat_api_request_{self.service_id}',
                                callback=self.handle_user_message,
-                               on_error=self.default_error_handler,
+                               # on_error=self.default_error_handler,
                                auto_ack=False,
                                restart_attempts=-1)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_chat_api_request',
                                callback=self.handle_user_message,
-                               on_error=self.default_error_handler,
+                               # on_error=self.default_error_handler,
                                auto_ack=False,
                                restart_attempts=-1)
         self.response_timeouts = {
@@ -141,7 +141,8 @@ class ChatAPIProxy(MQConnector):
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
-        LOG.debug(f'Received neon response body: {body} in {_stopwatch.time}s')
+        LOG.debug(f'Processed neon response: {body["msg_type"]} in '
+                  f'{_stopwatch.time}s')
         _stopwatch.stop()
         if not body:
             LOG.warning('Something went wrong while formatting - '
