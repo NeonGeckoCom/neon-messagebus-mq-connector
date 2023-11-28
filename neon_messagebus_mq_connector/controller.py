@@ -68,14 +68,14 @@ class ChatAPIProxy(MQConnector):
                                queue=f'neon_chat_api_request_{self.service_id}',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
-                               auto_ack=True,
+                               auto_ack=False,
                                restart_attempts=-1)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_chat_api_request',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
-                               auto_ack=True,
+                               auto_ack=False,
                                restart_attempts=-1)
         self.response_timeouts = {
             NeonResponseTypes.TTS: 60,
@@ -279,10 +279,12 @@ class ChatAPIProxy(MQConnector):
 
         """
         input_received = time.time()
+        LOG.debug(f"Handle {method.delivery_tag}")
         if not isinstance(body, bytes):
-            channel.basic_nack()
-            raise TypeError(f'Invalid body received, expected: bytes string;'
+            channel.basic_nack(method.delivery_tag)
+            raise TypeError(f'Invalid body received, expected: bytes;'
                             f' got: {type(body)}')
+        channel.basic_ack(method.delivery_tag)
         _stopwatch = Stopwatch()
         _stopwatch.start()
         dict_data = b64_to_dict(body)
