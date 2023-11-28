@@ -337,7 +337,8 @@ class ChatAPIProxy(MQConnector):
                           f'is not emitted')
                 return
 
-            if message.context.get('ident'):
+            if message.context.get('ident') and \
+                    message.msg_type != "recognizer_loop:utterance":
                 # If there's an ident in context, API methods will emit that.
                 # This isn't explicitly defined but `get_stt`, `get_tts`, and
                 # `audio_input` use this pattern to associate responses with the
