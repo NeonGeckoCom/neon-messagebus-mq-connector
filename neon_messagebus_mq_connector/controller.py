@@ -77,6 +77,7 @@ class ChatAPIProxy(MQConnector):
                                # on_error=self.default_error_handler,
                                auto_ack=False,
                                restart_attempts=-1)
+        LOG.debug(self.get_connection_params(self.vhost))
         self.response_timeouts = {
             NeonResponseTypes.TTS: 60,
             NeonResponseTypes.STT: 60
@@ -141,9 +142,9 @@ class ChatAPIProxy(MQConnector):
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
+        _stopwatch.stop()
         LOG.debug(f'Processed neon response: {body["msg_type"]} in '
                   f'{_stopwatch.time}s')
-        _stopwatch.stop()
         if not body:
             LOG.warning('Something went wrong while formatting - '
                         f'received empty body for {message.msg_type}')
@@ -280,7 +281,7 @@ class ChatAPIProxy(MQConnector):
 
         """
         input_received = time.time()
-        LOG.debug(f"Handle {method.delivery_tag}")
+        LOG.debug(f"Handle delivery_tag={method.delivery_tag}")
         if not isinstance(body, bytes):
             channel.basic_nack(method.delivery_tag)
             raise TypeError(f'Invalid body received, expected: bytes;'
@@ -289,7 +290,6 @@ class ChatAPIProxy(MQConnector):
         _stopwatch = Stopwatch()
         _stopwatch.start()
         dict_data = b64_to_dict(body)
-        LOG.debug(f"Deserialized in {_stopwatch.time}s")
         LOG.info(f'Received user message: {dict_data["msg_type"]}|'
                  f'data={dict_data["data"].keys()}|'
                  f'context={dict_data["context"].keys()}')
@@ -354,6 +354,7 @@ class ChatAPIProxy(MQConnector):
                 # because multiple concurrent requests can cause responses to be
                 # disassociated with the request message.
                 self.bus.emit(message)
+        LOG.debug("Handler Complete")
 
     def format_response(self, response_type: NeonResponseTypes,
                         message: Message) -> dict:
