@@ -34,7 +34,7 @@ from typing import List, Type, Tuple
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
 from ovos_utils.log import LOG, log_deprecation
-
+from ovos_utils import create_daemon
 from neon_utils.metrics_utils import Stopwatch
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
@@ -68,14 +68,14 @@ class ChatAPIProxy(MQConnector):
                                queue=f'neon_chat_api_request_{self.service_id}',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
-                               auto_ack=True,
+                               auto_ack=False,
                                restart_attempts=-1)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_chat_api_request',
                                callback=self.handle_user_message,
                                on_error=self.default_error_handler,
-                               auto_ack=True,
+                               auto_ack=False,
                                restart_attempts=-1)
         self.response_timeouts = {
             NeonResponseTypes.TTS: 60,
@@ -141,8 +141,9 @@ class ChatAPIProxy(MQConnector):
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
-        LOG.debug(f'Received neon response body: {body} in {_stopwatch.time}s')
         _stopwatch.stop()
+        LOG.debug(f'Processed neon response: {body["msg_type"]} in '
+                  f'{_stopwatch.time}s')
         if not body:
             LOG.warning('Something went wrong while formatting - '
                         f'received empty body for {message.msg_type}')
@@ -279,14 +280,15 @@ class ChatAPIProxy(MQConnector):
 
         """
         input_received = time.time()
+        LOG.debug(f"Handle delivery_tag={method.delivery_tag}")
         if not isinstance(body, bytes):
-            channel.basic_nack()
-            raise TypeError(f'Invalid body received, expected: bytes string;'
+            channel.basic_nack(method.delivery_tag)
+            raise TypeError(f'Invalid body received, expected: bytes;'
                             f' got: {type(body)}')
+        channel.basic_ack(method.delivery_tag)
         _stopwatch = Stopwatch()
         _stopwatch.start()
         dict_data = b64_to_dict(body)
-        LOG.debug(f"Deserialized in {_stopwatch.time}s")
         LOG.info(f'Received user message: {dict_data["msg_type"]}|'
                  f'data={dict_data["data"].keys()}|'
                  f'context={dict_data["context"].keys()}')
@@ -334,23 +336,37 @@ class ChatAPIProxy(MQConnector):
                           f'is not emitted')
                 return
 
-            if message.context.get('ident'):
+            if message.context.get('ident') and \
+                    message.msg_type != "recognizer_loop:utterance":
                 # If there's an ident in context, API methods will emit that.
                 # This isn't explicitly defined but `get_stt`, `get_tts`, and
                 # `audio_input` use this pattern to associate responses with the
                 # original request.
-                resp = self.bus.wait_for_response(message,
-                                                  message.context['ident'], 30)
-                if resp:
-                    # Override msg_type for handler; context contains routing
-                    resp.msg_type = f"{message.msg_type}.response"
-                    self.handle_neon_message(resp)
+                create_daemon(self._get_messagebus_response, args=(message,),
+                              autostart=True)
             else:
                 # No ident means we'll get a plain `msg_type.response` which has
                 # a handler already registered. `wait_for_response` is not used
                 # because multiple concurrent requests can cause responses to be
                 # disassociated with the request message.
                 self.bus.emit(message)
+        LOG.debug(f"Handler Complete in {time.time() - input_received}s")
+
+    def _get_messagebus_response(self, message: Message):
+        """
+        Helper method to get a response on the Messagebus that can be threaded
+        so as not to block MQ handling.
+        @param message: Message object to get a response for
+        """
+        resp = self.bus.wait_for_response(message,
+                                          message.context['ident'], 30)
+        if resp:
+            # Override msg_type for handler; context contains routing
+            resp.msg_type = f"{message.msg_type}.response"
+            self.handle_neon_message(resp)
+        else:
+            # TODO: Is this a warning or just info/debug?
+            LOG.warning(f"No response to: {message.msg_type}")
 
     def format_response(self, response_type: NeonResponseTypes,
                         message: Message) -> dict:
