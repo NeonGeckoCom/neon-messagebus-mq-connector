@@ -88,6 +88,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('complete.intent.failure', self.handle_neon_message)
         self._bus.on('intent_aborted', self.handle_neon_message)
         self._bus.on('neon.profile_update', self.handle_neon_profile_update)
+        self._bus.on('neon.languages.get', self.handle_get_languages)
         self._bus.on('neon.clear_data', self.handle_neon_message)
         self._bus.on('neon.audio_input.response', self.handle_neon_message)
         self._bus.on('neon.get_tts.response', self.handle_neon_message)
@@ -95,6 +96,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('ovos.languages.stt.response', self.handle_neon_message)
         self._bus.on('ovos.languages.tts.response', self.handle_neon_message)
         self._bus.on('neon.languages.skills.response', self.handle_neon_message)
+        self._bus.on('neon.languages.get.response', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -353,11 +355,11 @@ class ChatAPIProxy(MQConnector):
                 return
 
             if message.context.get('ident') and \
-                    message.msg_type != "recognizer_loop:utterance":
+                    message.msg_type in ("neon.get_stt", "neon.get_tts",
+                                         "neon.audio_input"):
                 # If there's an ident in context, API methods will emit that.
-                # This isn't explicitly defined but `get_stt`, `get_tts`, and
-                # `audio_input` use this pattern to associate responses with the
-                # original request.
+                # This isn't explicitly defined but  this pattern is often used
+                # to associate responses with the original request.
                 create_daemon(self._get_messagebus_response, args=(message,),
                               autostart=True)
             else:
