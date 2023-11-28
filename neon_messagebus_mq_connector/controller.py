@@ -88,7 +88,6 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('complete.intent.failure', self.handle_neon_message)
         self._bus.on('intent_aborted', self.handle_neon_message)
         self._bus.on('neon.profile_update', self.handle_neon_profile_update)
-        self._bus.on('neon.languages.get', self.handle_get_languages)
         self._bus.on('neon.clear_data', self.handle_neon_message)
         self._bus.on('neon.audio_input.response', self.handle_neon_message)
         self._bus.on('neon.get_tts.response', self.handle_neon_message)
@@ -181,13 +180,6 @@ class ChatAPIProxy(MQConnector):
             # No mq context means this is probably local
             LOG.debug(f"ignoring profile update for "
                       f"user={message.data['profile']['user']['username']}")
-
-    def handle_get_languages(self, message: Message):
-        from neon_utils.language_utils import get_supported_languages
-        supported_langs = get_supported_languages()
-        self.bus.emit(message.response({"stt": supported_langs.stt,
-                                        "tts": supported_langs.tts,
-                                        "skills": supported_langs.skills}))
 
     @staticmethod
     def __validate_message_templates(
