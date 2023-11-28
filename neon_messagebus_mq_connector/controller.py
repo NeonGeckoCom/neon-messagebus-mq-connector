@@ -350,7 +350,7 @@ class ChatAPIProxy(MQConnector):
                 # because multiple concurrent requests can cause responses to be
                 # disassociated with the request message.
                 self.bus.emit(message)
-        LOG.debug("Handler Complete")
+        LOG.debug(f"Handler Complete in {time.time() - input_received}s")
 
     def _get_messagebus_response(self, message: Message):
         """
