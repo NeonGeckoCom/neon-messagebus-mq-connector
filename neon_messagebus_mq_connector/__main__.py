@@ -31,7 +31,7 @@ import os
 import sys
 
 from typing import Optional
-from neon_utils.logger import LOG
+from ovos_utils.log import LOG
 
 from neon_messagebus_mq_connector.config import Configuration
 from neon_messagebus_mq_connector import ChatAPIProxy
@@ -39,9 +39,12 @@ from neon_messagebus_mq_connector import ChatAPIProxy
 
 def _get_default_config() -> dict:
     try:
-        return Configuration(
-            from_files=[os.environ.get('CHAT_API_PROXY_CONFIG',
-                                       'config.json')]).config_data
+        legacy_config_file = os.environ.get('CHAT_API_PROXY_CONFIG',
+                                            'config.json')
+        if os.path.isfile(legacy_config_file):
+            LOG.info(f"Using legacy configuration from {legacy_config_file}")
+            return Configuration(
+                from_files=[legacy_config_file]).config_data
     except Exception as e:
         LOG.error(e)
         return dict()
