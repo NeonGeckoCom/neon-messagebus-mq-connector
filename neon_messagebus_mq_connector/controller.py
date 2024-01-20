@@ -134,19 +134,21 @@ class ChatAPIProxy(MQConnector):
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat_data', {})
         message.context.setdefault('mq', {})
-        if message.msg_type == 'neon.get_tts.response':
-            body = self.format_response(response_type=NeonResponseTypes.TTS,
-                                        message=message)
-            message.context['mq'].setdefault('routing_key', 'neon_tts_response')
-        elif message.msg_type == 'neon.get_stt.response':
-            body = self.format_response(response_type=NeonResponseTypes.STT,
-                                        message=message)
-            message.context['mq'].setdefault('routing_key', 'neon_stt_response')
+        # TODO: Can Klat parse a generic Neon response instead of extra parsing
+        #       here?
+        if message.context['klat_data'].get("sid"):
+            LOG.debug(f"Formatting klat response for: "
+                      f"{message.context['klat_data']['sid']}")
+            response_type = NeonResponseTypes.TTS if \
+                message.msg_type == "neon.get_tts.response" else \
+                NeonResponseTypes.STT if \
+                    message.msg_type == "neon.get_stt.response" else None
+            body = self.format_response(response_type, message)
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
         _stopwatch.stop()
-        LOG.debug(f'Processed neon response: {body["msg_type"]} in '
+        LOG.debug(f'Processed neon response: {body.get("msg_type")} in '
                   f'{_stopwatch.time}s')
         if not body:
             LOG.warning('Something went wrong while formatting - '
@@ -397,8 +399,8 @@ class ChatAPIProxy(MQConnector):
         if int(time.time()) - message.context.get('created_on', 0) > timeout:
             LOG.warning(f'Message = {message} received timeout on '
                         f'{response_type} (>{timeout} seconds)')
-            response_data = {}
-        elif response_type == NeonResponseTypes.TTS:
+            return {}
+        if response_type == NeonResponseTypes.TTS:
             lang = list(message.data)[0]
             gender = message.data[lang].get('genders', ['female'])[0]
             audio_data_b64 = message.data[lang]['audio'][gender]
