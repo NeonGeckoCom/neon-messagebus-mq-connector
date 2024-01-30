@@ -96,6 +96,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('ovos.languages.tts.response', self.handle_neon_message)
         self._bus.on('neon.languages.skills.response', self.handle_neon_message)
         self._bus.on('neon.languages.get.response', self.handle_neon_message)
+        self._bus.on('neon.alert_expired', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -253,7 +254,9 @@ class ChatAPIProxy(MQConnector):
                 else:
                     message_templates.append(matching_template_model)
         else:
-            raise ValueError(f"Unable to validate input message: {msg_data}")
+            LOG.warning(f"Handling arbitrary message: {msg_type}")
+            message_templates = [templates.get('message')]
+            # raise ValueError(f"Unable to validate input message: {msg_data}")
         detected_error, msg_data = cls.__validate_message_templates(
             msg_data=msg_data, message_templates=message_templates)
         return detected_error, msg_data
