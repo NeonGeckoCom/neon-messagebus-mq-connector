@@ -29,7 +29,7 @@ jobs:
         run: |
           pytest tests/test_request_validation.py --doctest-modules --junitxml=tests/request-validation-test-results.xml
       - name: Upload request validation test results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: request-validation-test-results
+          name: request-validation-test-results-${{ matrix.python-version }}
           path: tests/request-validation-test-results.xml
