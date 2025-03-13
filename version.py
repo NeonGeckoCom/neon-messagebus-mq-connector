@@ -27,4 +27,4 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-__version__ = "0.4.1a6"
+__version__ = "1.0.0"
