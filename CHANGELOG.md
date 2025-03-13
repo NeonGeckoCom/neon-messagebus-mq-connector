@@ -1,68 +1,52 @@
 # Changelog
 
-## [0.3.5a8](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a8) (2023-11-28)
+## [0.4.1a6](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.4.1a6) (2025-03-13)
 
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a7...0.3.5a8)
-
-**Merged pull requests:**
-
-- Forward language API messages to/from MQ clients [\#50](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/50) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [0.3.5a7](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a7) (2023-11-28)
-
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a6...0.3.5a7)
+[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.4.1a5...0.4.1a6)
 
 **Merged pull requests:**
 
-- Resolve extra time waiting for MQ Handler [\#51](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/51) ([NeonDaniel](https://github.com/NeonDaniel))
+- Make `msg_data['msg_type']` references safe in logs [\#58](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/58) ([NeonDaniel](https://github.com/NeonDaniel))
 
-## [0.3.5a6](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a6) (2023-11-18)
+## [0.4.1a5](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.4.1a5) (2025-03-11)
 
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a5...0.3.5a6)
-
-**Merged pull requests:**
-
-- Fix default routing context and profile update handling [\#49](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/49) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [0.3.5a5](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a5) (2023-11-15)
-
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a4...0.3.5a5)
+[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.4.1a4...0.4.1a5)
 
 **Merged pull requests:**
 
-- Handle Neon responses to specific inputs [\#48](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/48) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update gitignore [\#57](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/57) ([NeonDaniel](https://github.com/NeonDaniel))
 
-## [0.3.5a4](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a4) (2023-11-14)
+## [0.4.1a4](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.4.1a4) (2025-03-11)
 
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a3...0.3.5a4)
-
-**Merged pull requests:**
-
-- Timing metrics and Optimization [\#47](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/47) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [0.3.5a3](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a3) (2023-09-13)
-
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a2...0.3.5a3)
+[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.4.1a3...0.4.1a4)
 
 **Merged pull requests:**
 
-- Support Audio Input, Update docs and logging [\#46](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/46) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update dependencies and gitignore [\#56](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/56) ([NeonDaniel](https://github.com/NeonDaniel))
 
-## [0.3.5a2](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a2) (2023-07-27)
+## [0.4.1a3](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.4.1a3) (2024-09-20)
 
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.5a1...0.3.5a2)
-
-**Merged pull requests:**
-
-- Update default context handling [\#45](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/45) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [0.3.5a1](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.3.5a1) (2023-07-25)
-
-[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.3.4...0.3.5a1)
+[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.4.1a2...0.4.1a3)
 
 **Merged pull requests:**
 
-- Update configuration handling [\#44](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/44) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update ovos-bus-client dependency and unit test automation [\#55](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/55) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [0.4.1a2](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.4.1a2) (2024-04-10)
+
+[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.4.1a1...0.4.1a2)
+
+**Merged pull requests:**
+
+- Support client alert handling [\#54](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/54) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [0.4.1a1](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/tree/0.4.1a1) (2024-01-20)
+
+[Full Changelog](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/compare/0.4.0...0.4.1a1)
+
+**Merged pull requests:**
+
+- Fix bug causing `get_stt` and `get_tts` request failures [\#53](https://github.com/NeonGeckoCom/neon-messagebus-mq-connector/pull/53) ([NeonDaniel](https://github.com/NeonDaniel))
 
 
 

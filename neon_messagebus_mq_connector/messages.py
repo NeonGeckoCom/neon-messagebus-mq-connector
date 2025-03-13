@@ -1,6 +1,6 @@
 # NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
 # All trademark and other rights reserved by their respective owners
-# Copyright 2008-2022 Neongecko.com Inc.
+# Copyright 2008-2025 Neongecko.com Inc.
 # Contributors: Daniel McKnight, Guy Daniels, Elon Gasper, Richard Leeds,
 # Regina Bloomstine, Casimiro Ferreira, Andrii Pernatii, Kirill Hrymailo
 # BSD-3 License
@@ -36,6 +36,12 @@ class BaseModel(PydanticBaseModel):
         extra = "allow"
 
 
+class MessageModel(BaseModel):
+    msg_type: str
+    data: dict
+    context: dict
+
+
 class RecognizerMessage(BaseModel):
     msg_type: str = "recognizer_loop:utterance"
     data: create_model("Data",
@@ -51,7 +57,7 @@ class RecognizerMessage(BaseModel):
                           timing=(dict, {}),
                           neon_should_respond=(bool, True),
                           username=(str, "guest"),
-                          klat_data=(dict, {'key': 'val'}),
+                          klat_data=(dict, {}),
                           mq=(dict, None),
                           user_profiles=(list, []),
                           request_skills=(List[str], None),
@@ -108,4 +114,5 @@ templates = {
     "tts": TTSMessage,
     "audio_input": AudioInput,
     "recognizer": RecognizerMessage,
+    "message": MessageModel
 }

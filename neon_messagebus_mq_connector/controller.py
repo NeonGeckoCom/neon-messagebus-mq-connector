@@ -1,6 +1,6 @@
 # NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
 # All trademark and other rights reserved by their respective owners
-# Copyright 2008-2022 Neongecko.com Inc.
+# Copyright 2008-2025 Neongecko.com Inc.
 # Contributors: Daniel McKnight, Guy Daniels, Elon Gasper, Richard Leeds,
 # Regina Bloomstine, Casimiro Ferreira, Andrii Pernatii, Kirill Hrymailo
 # BSD-3 License
@@ -96,6 +96,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('ovos.languages.tts.response', self.handle_neon_message)
         self._bus.on('neon.languages.skills.response', self.handle_neon_message)
         self._bus.on('neon.languages.get.response', self.handle_neon_message)
+        self._bus.on('neon.alert_expired', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -134,19 +135,21 @@ class ChatAPIProxy(MQConnector):
             message.data['msg'] = 'Failed to get response from Neon'
         message.context.setdefault('klat_data', {})
         message.context.setdefault('mq', {})
-        if message.msg_type == 'neon.get_tts.response':
-            body = self.format_response(response_type=NeonResponseTypes.TTS,
-                                        message=message)
-            message.context['mq'].setdefault('routing_key', 'neon_tts_response')
-        elif message.msg_type == 'neon.get_stt.response':
-            body = self.format_response(response_type=NeonResponseTypes.STT,
-                                        message=message)
-            message.context['mq'].setdefault('routing_key', 'neon_stt_response')
+        # TODO: Can Klat parse a generic Neon response instead of extra parsing
+        #       here?
+        if message.context['klat_data'].get("sid"):
+            LOG.debug(f"Formatting klat response for: "
+                      f"{message.context['klat_data']['sid']}")
+            response_type = NeonResponseTypes.TTS if \
+                message.msg_type == "neon.get_tts.response" else \
+                NeonResponseTypes.STT if \
+                    message.msg_type == "neon.get_stt.response" else None
+            body = self.format_response(response_type, message)
         else:
             body = {'msg_type': message.msg_type,
                     'data': message.data, 'context': message.context}
         _stopwatch.stop()
-        LOG.debug(f'Processed neon response: {body["msg_type"]} in '
+        LOG.debug(f'Processed neon response: {body.get("msg_type")} in '
                   f'{_stopwatch.time}s')
         if not body:
             LOG.warning('Something went wrong while formatting - '
@@ -207,8 +210,9 @@ class ChatAPIProxy(MQConnector):
             try:
                 msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
-                LOG.error(f'Failed to validate {msg_data["msg_type"]} with template = '
-                          f'{message_template.__name__}, exception={err}')
+                LOG.error(f'Failed to validate {msg_data.get("msg_type")} with '
+                          f'template = {message_template.__name__}, '
+                          'exception={err}')
                 return str(err), msg_data
         LOG.debug('Template validation completed successfully')
         return '', msg_data
@@ -251,7 +255,9 @@ class ChatAPIProxy(MQConnector):
                 else:
                     message_templates.append(matching_template_model)
         else:
-            raise ValueError(f"Unable to validate input message: {msg_data}")
+            LOG.warning(f"Handling arbitrary message: {msg_type}")
+            message_templates = [templates.get('message')]
+            # raise ValueError(f"Unable to validate input message: {msg_data}")
         detected_error, msg_data = cls.__validate_message_templates(
             msg_data=msg_data, message_templates=message_templates)
         return detected_error, msg_data
@@ -299,7 +305,7 @@ class ChatAPIProxy(MQConnector):
         _stopwatch = Stopwatch()
         _stopwatch.start()
         dict_data = b64_to_dict(body)
-        LOG.info(f'Received user message: {dict_data["msg_type"]}|'
+        LOG.info(f'Received user message: {dict_data.get("msg_type")}|'
                  f'data={dict_data["data"].keys()}|'
                  f'context={dict_data["context"].keys()}')
         mq_context = {"routing_key": dict_data.pop('routing_key', ''),
@@ -397,8 +403,8 @@ class ChatAPIProxy(MQConnector):
         if int(time.time()) - message.context.get('created_on', 0) > timeout:
             LOG.warning(f'Message = {message} received timeout on '
                         f'{response_type} (>{timeout} seconds)')
-            response_data = {}
-        elif response_type == NeonResponseTypes.TTS:
+            return {}
+        if response_type == NeonResponseTypes.TTS:
             lang = list(message.data)[0]
             gender = message.data[lang].get('genders', ['female'])[0]
             audio_data_b64 = message.data[lang]['audio'][gender]
