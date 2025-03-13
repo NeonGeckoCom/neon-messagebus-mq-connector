@@ -210,8 +210,9 @@ class ChatAPIProxy(MQConnector):
             try:
                 msg_data = message_template(**msg_data).dict()
             except (ValueError, ValidationError) as err:
-                LOG.error(f'Failed to validate {msg_data["msg_type"]} with template = '
-                          f'{message_template.__name__}, exception={err}')
+                LOG.error(f'Failed to validate {msg_data.get("msg_type")} with '
+                          f'template = {message_template.__name__}, '
+                          'exception={err}')
                 return str(err), msg_data
         LOG.debug('Template validation completed successfully')
         return '', msg_data
@@ -304,7 +305,7 @@ class ChatAPIProxy(MQConnector):
         _stopwatch = Stopwatch()
         _stopwatch.start()
         dict_data = b64_to_dict(body)
-        LOG.info(f'Received user message: {dict_data["msg_type"]}|'
+        LOG.info(f'Received user message: {dict_data.get("msg_type")}|'
                  f'data={dict_data["data"].keys()}|'
                  f'context={dict_data["context"].keys()}')
         mq_context = {"routing_key": dict_data.pop('routing_key', ''),
