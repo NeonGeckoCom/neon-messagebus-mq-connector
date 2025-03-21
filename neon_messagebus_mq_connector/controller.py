@@ -159,11 +159,10 @@ class ChatAPIProxy(MQConnector):
             body['context']['timing']['mq_from_core'] = response_handled - \
                 body['context']['timing']['response_sent']
         body['context']['timing']['mq_response_handler'] = _stopwatch.time
-        routing_key = message.context.get("mq",
-                                          {}).get("routing_key",
-                                                  'neon_chat_api_response')
-
-        # This takes on the order of ~=0.04s
+        routing_key = message.context.get("mq", {}).get("routing_key") or \
+            'neon_chat_api_response'
+        LOG.debug(f"Sending message ({message.msg_type}) with "
+                  f"routing_key={routing_key}")
         self.send_message(request_data=body, queue=routing_key)
         LOG.debug(f"Sent message with routing_key={routing_key}")
 
