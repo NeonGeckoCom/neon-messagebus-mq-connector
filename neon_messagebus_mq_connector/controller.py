@@ -134,33 +134,29 @@ class ChatAPIProxy(MQConnector):
         :param message: Received Message object
         """
         response_handled = time.time()
-        _stopwatch = Stopwatch()
-        _stopwatch.start()
-        if not message.data:
-            message.data['msg'] = 'Failed to get response from Neon'
-        message.context.setdefault('mq', {})
 
-        body = {'msg_type': message.msg_type,
-                'data': message.data, 'context': message.context}
-        _stopwatch.stop()
-        LOG.debug(f'Processed neon response: {body.get("msg_type")} in '
+        with _stopwatch := Stopwatch():
+            try:
+                response_message = NeonApiMessage(message.as_dict())
+            except ValidationError as e:
+                LOG.error(f"Failed to parse response message: {e}")
+                return
+
+        LOG.debug(f'Processed neon response: {message.msg_type} in '
                   f'{_stopwatch.time}s')
-        if not body:
-            LOG.warning('Something went wrong while formatting - '
-                        f'received empty body for {message.msg_type}')
-            return
 
-        body['context'].setdefault("timing", dict())
-        if body['context']['timing'].get("response_sent"):
-            body['context']['timing']['mq_from_core'] = response_handled - \
-                body['context']['timing']['response_sent']
-        body['context']['timing']['mq_response_handler'] = _stopwatch.time
-        routing_key = message.context.get("mq", {}).get("routing_key") or \
-            'neon_chat_api_response'
+        # Add timing metrics
+        if response_message.context.timing.response_sent:
+            response_message.context.timing.mq_from_core = response_handled - \
+                response_message.context.timing.response_sent.timestamp()
+        response_message.context.timing.mq_response_handler = _stopwatch.time
+
         LOG.debug(f"Sending message ({message.msg_type}) with "
-                  f"routing_key={routing_key}")
-        self.send_message(request_data=body, queue=routing_key)
-        LOG.debug(f"Sent message with routing_key={routing_key}")
+                  f"routing_key={response_message.routing_key}")
+        self.send_message(request_data=response_message.model_dump(),
+                           queue=response_message.routing_key)
+        LOG.debug(
+            f"Sent message with routing_key={response_message.routing_key}")
 
     def handle_neon_profile_update(self, message: Message):
         """
