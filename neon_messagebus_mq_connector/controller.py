@@ -142,21 +142,10 @@ class ChatAPIProxy(MQConnector):
         _stopwatch.start()
         if not message.data:
             message.data['msg'] = 'Failed to get response from Neon'
-        message.context.setdefault('klat_data', {})
         message.context.setdefault('mq', {})
-        # TODO: Can Klat parse a generic Neon response instead of extra parsing
-        #       here?
-        if message.context['klat_data'].get("sid"):
-            LOG.debug(f"Formatting klat response for: "
-                      f"{message.context['klat_data']['sid']}")
-            response_type = NeonResponseTypes.TTS if \
-                message.msg_type == "neon.get_tts.response" else \
-                NeonResponseTypes.STT if \
-                    message.msg_type == "neon.get_stt.response" else None
-            body = self.format_response(response_type, message)
-        else:
-            body = {'msg_type': message.msg_type,
-                    'data': message.data, 'context': message.context}
+
+        body = {'msg_type': message.msg_type,
+                'data': message.data, 'context': message.context}
         _stopwatch.stop()
         LOG.debug(f'Processed neon response: {body.get("msg_type")} in '
                   f'{_stopwatch.time}s')
@@ -392,51 +381,3 @@ class ChatAPIProxy(MQConnector):
         else:
             # TODO: Is this a warning or just info/debug?
             LOG.warning(f"No response to: {message.msg_type}")
-
-    def format_response(self, response_type: NeonResponseTypes,
-                        message: Message) -> dict:
-        """
-        Reformat received response by Neon API for Klat based on type
-
-        :param response_type: response type from NeonResponseTypes Enum
-        :param message: Neon MessageBus Message object
-
-        :returns formatted response dict
-        """
-        msg_error = message.data.get('error')
-        if msg_error:
-            LOG.error(f'Failed to fetch data for context={message.context} - '
-                      f'{msg_error}')
-            return {}
-        timeout = self.response_timeouts.get(response_type, 30)
-        if int(time.time()) - message.context.get('created_on', 0) > timeout:
-            LOG.warning(f'Message = {message} received timeout on '
-                        f'{response_type} (>{timeout} seconds)')
-            return {}
-        if response_type == NeonResponseTypes.TTS:
-            lang = list(message.data)[0]
-            gender = message.data[lang].get('genders', ['female'])[0]
-            audio_data_b64 = message.data[lang]['audio'][gender]
-
-            response_data = {
-                'audio_data': audio_data_b64,
-                'lang': lang,
-                'gender': gender,
-                'context': message.context
-            }
-        elif response_type == NeonResponseTypes.STT:
-            transcripts = message.data.get('transcripts', [''])
-            LOG.info(f'transcript candidates received - {transcripts}')
-            response_data = {
-                'transcript': transcripts[0],
-                'other_transcripts': [transcript for transcript in
-                                      transcripts if
-                                      transcript != transcripts[0]],
-                'lang': message.context.get('lang', 'en-us'),
-                'context': message.context
-            }
-        else:
-            LOG.warning(f'Failed to response response type -> '
-                        f'{response_type}')
-            response_data = {}
-        return response_data
