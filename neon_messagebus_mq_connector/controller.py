@@ -29,8 +29,6 @@
 import time
 import pika
 
-from typing import List, Type, Tuple
-
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
 from ovos_utils.log import LOG, log_deprecation
@@ -39,11 +37,9 @@ from neon_utils.metrics_utils import Stopwatch
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
 from neon_mq_connector.connector import MQConnector, ConsumerThreadInstance
-from pika.channel import Channel
 from pydantic import ValidationError
-
+from neon_data_models.models.api.mq.neon import NeonApiMessage
 from neon_messagebus_mq_connector.enums import NeonResponseTypes
-from neon_messagebus_mq_connector.messages import templates, BaseModel
 
 
 class ChatAPIProxy(MQConnector):
@@ -181,103 +177,6 @@ class ChatAPIProxy(MQConnector):
             LOG.debug(f"ignoring profile update for "
                       f"user={message.data['profile']['user']['username']}")
 
-    @staticmethod
-    def __validate_message_templates(
-            msg_data: dict,
-            message_templates: List[Type[BaseModel]] = None) \
-            -> Tuple[str, dict]:
-        """
-        Validate selected pydantic message templates into provided message data
-
-        :param msg_data: Message data to fetch
-        :param message_templates: list of pydantic templates to fetch into data
-
-        :returns tuple containing 2 values:
-                 1) validation error if detected;
-                 2) fetched message data;
-        """
-
-        if not message_templates:
-            LOG.warning('No matching templates found, '
-                        'skipping template fetching')
-            return '', msg_data
-
-        LOG.debug(f'Initiating template validation with {message_templates}')
-        for message_template in message_templates:
-            try:
-                msg_data = message_template(**msg_data).dict()
-            except (ValueError, ValidationError) as err:
-                LOG.error(f'Failed to validate {msg_data.get("msg_type")} with '
-                          f'template = {message_template.__name__}, '
-                          'exception={err}')
-                return str(err), msg_data
-        LOG.debug('Template validation completed successfully')
-        return '', msg_data
-
-    @classmethod
-    def validate_request(cls, msg_data: dict):
-        """
-        Fetches the relevant template models and validates provided message data
-        iteratively through them
-
-        :param msg_data: message data for validation
-
-        :return: validation details(None if validation passed),
-                 input data with proper data types and filled default fields
-        """
-        msg_type = msg_data.get('msg_type')
-        if msg_type == "neon.get_stt":
-            message_templates = [templates.get("stt")]
-        elif msg_type == "neon.audio_input":
-            message_templates = [templates.get("audio_input")]
-        elif msg_type == "recognizer_loop:utterance":
-            message_templates = [templates.get("recognizer")]
-        elif msg_type == "neon.get_tts":
-            message_templates = [templates.get("tts")]
-        elif msg_type in ("ovos.languages.stt", "ovos.languages.tts",
-                          "neon.languages.skills", "neon.languages.get"):
-            # These have no expected data
-            return "", msg_data
-        # elif msg_data.get("context", {}).get("request_skills"):
-        #     # TODO: This context isn't referenced anywhere in core. Deprecate?
-        #     LOG.warning(f"Unknown input message type: {msg_type}")
-        #     requested_templates = msg_data["context"]["request_skills"]
-        #     message_templates = []
-
-        #     for requested_template in requested_templates:
-        #         matching_template_model = templates.get(requested_template)
-        #         if not matching_template_model:
-        #             LOG.warning(f'Template under keyword '
-        #                         f'"{requested_template}" does not exist')
-        #         else:
-        #             message_templates.append(matching_template_model)
-        else:
-            LOG.warning(f"Handling arbitrary message: {msg_type}")
-            message_templates = [templates.get('message')]
-            # raise ValueError(f"Unable to validate input message: {msg_data}")
-        detected_error, msg_data = cls.__validate_message_templates(
-            msg_data=msg_data, message_templates=message_templates)
-        return detected_error, msg_data
-
-    @staticmethod
-    def validate_message_context(message: Message) -> bool:
-        """
-        Validates message context so its relevant data could be fetched once
-        a response is received
-        """
-        message_id = message.context.get('mq', {}).get('message_id')
-        if not message_id:
-            LOG.warning('Message context validation failed - '
-                        'message.context["mq"]["message_id"] is None')
-            return False
-        else:
-            message.context['created_on'] = int(time.time())
-            if message.msg_type == 'neon.get_stt':
-                if message.context.get('lang') != message.data.get('lang'):
-                    LOG.warning("Context lang does not match data!")
-                    message.context['lang'] = message.data.get('lang')
-        return True
-
     def handle_user_message(self,
                             channel: pika.channel.Channel,
                             method: pika.spec.Basic.Return,
@@ -303,66 +202,48 @@ class ChatAPIProxy(MQConnector):
         _stopwatch.start()
         dict_data = b64_to_dict(body)
         LOG.info(f'Received user message: {dict_data.get("msg_type")}|'
-                 f'data={dict_data["data"].keys()}|'
-                 f'context={dict_data["context"].keys()}')
-        mq_context = {"routing_key": dict_data.pop('routing_key', ''),
-                      "message_id": dict_data.pop('message_id', '')}
-        klat_context = {"cid": dict_data.pop('cid', ''),
-                        "sid": dict_data.pop('sid', '')}
-        # Klat Context for backwards-compat
-        dict_data["context"].setdefault("mq",
-                                        {**mq_context, **klat_context})
-        dict_data["context"].setdefault("klat_data", klat_context)
-        # TODO: Consider merging this context instead of `setdefault` so
-        #       expected keys are always present
-
-        # Add timing metrics
-        dict_data["context"].setdefault("timing", dict())
-        if dict_data["context"]["timing"].get("client_sent"):
-            dict_data["context"]["timing"]["mq_from_client"] = \
-                input_received - dict_data["context"]["timing"]["client_sent"]
+            f'data={dict_data["data"].keys()}|'
+            f'context={dict_data["context"].keys()}')
         try:
-            validation_error, dict_data = self.validate_request(dict_data)
-        except ValueError as e:
+            neon_api_message = NeonApiMessage(**body)
+        except ValidationError as e:
             LOG.error(e)
-            validation_error = True
-
-        _stopwatch.stop()
-        LOG.debug(f"Input handled in {_stopwatch.time}s")
-        dict_data["context"]["timing"]["mq_input_handler"] = _stopwatch.time
-        if validation_error:
-            LOG.error(f"Validation failed with: {validation_error}")
-            # Don't deserialize since this Message may be malformed
+            # This Message is malformed
             context = dict_data.pop("context")
-            response = Message("klat.error", {"error": validation_error,
+            response = Message("klat.error", {"error": repr(e),
                                               "data": dict_data},
                                context)
             response.context['klat_data'].setdefault('routing_key',
                                                      'neon_chat_api_error')
             self.handle_neon_message(response)
-        else:
-            message = Message(**dict_data)
-            # TODO: Move context validation to request validation
-            if not self.validate_message_context(message):
-                LOG.error(f'Message context is invalid - '
-                          f'{message.context["mq"]["message_id"]} '
-                          f'is not emitted')
-                return
+            _stopwatch.stop()
+            return
 
-            if message.context.get('ident') and \
-                    message.msg_type in ("neon.get_stt", "neon.get_tts",
-                                         "neon.audio_input"):
-                # If there's an ident in context, API methods will emit that.
-                # This isn't explicitly defined but  this pattern is often used
-                # to associate responses with the original request.
-                create_daemon(self._get_messagebus_response, args=(message,),
-                              autostart=True)
-            else:
-                # No ident means we'll get a plain `msg_type.response` which has
-                # a handler already registered. `wait_for_response` is not used
-                # because multiple concurrent requests can cause responses to be
-                # disassociated with the request message.
-                self.bus.emit(message)
+        # Add timing metrics
+        if neon_api_message.context.timing.client_sent:
+            neon_api_message.context.timing.mq_from_client = \
+                input_received - neon_api_message.context.timing.client_sent
+
+        _stopwatch.stop()
+        neon_api_message.context.timing.mq_input_handler = _stopwatch.time
+        message = neon_api_message.as_message()
+        if message.context.get('ident') and \
+                message.msg_type in ("neon.get_stt", "neon.get_tts",
+                                        "neon.audio_input"):
+            # If there's an ident in context, API methods will emit that.
+            # This isn't explicitly defined but this pattern is often used
+            # to associate responses with the original request.
+
+            # This is here for backwards-compat. Modules implementing
+            # `neon-data-models` will not send an `ident` key
+            create_daemon(self._get_messagebus_response, args=(message,),
+                            autostart=True)
+        else:
+            # No ident means we'll get a plain `msg_type.response` which has
+            # a handler already registered. `wait_for_response` is not used
+            # because multiple concurrent requests can cause responses to be
+            # disassociated with the request message.
+            self.bus.emit(message)
         LOG.debug(f"Handler Complete in {time.time() - input_received}s")
 
     def _get_messagebus_response(self, message: Message):
@@ -378,5 +259,4 @@ class ChatAPIProxy(MQConnector):
             resp.msg_type = f"{message.msg_type}.response"
             self.handle_neon_message(resp)
         else:
-            # TODO: Is this a warning or just info/debug?
             LOG.warning(f"No response to: {message.msg_type}")
