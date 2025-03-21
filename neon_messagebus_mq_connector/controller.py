@@ -134,8 +134,8 @@ class ChatAPIProxy(MQConnector):
         :param message: Received Message object
         """
         response_handled = time.time()
-
-        with Stopwatch() as _stopwatch:
+        _stopwatch = Stopwatch()
+        with _stopwatch:
             try:
                 response_message = NeonApiMessage(msg_type=message.msg_type,
                                                   data=message.data,
