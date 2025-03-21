@@ -205,7 +205,7 @@ class ChatAPIProxy(MQConnector):
             f'data={dict_data["data"].keys()}|'
             f'context={dict_data["context"].keys()}')
         try:
-            neon_api_message = NeonApiMessage(**body)
+            neon_api_message = NeonApiMessage(**dict_data)
         except ValidationError as e:
             LOG.error(e)
             # This Message is malformed
