@@ -222,7 +222,7 @@ class ChatAPIProxy(MQConnector):
         # Add timing metrics
         if neon_api_message.context.timing.client_sent:
             neon_api_message.context.timing.mq_from_client = \
-                input_received - neon_api_message.context.timing.client_sent
+                input_received - neon_api_message.context.timing.client_sent.timestamp()
 
         _stopwatch.stop()
         neon_api_message.context.timing.mq_input_handler = _stopwatch.time
