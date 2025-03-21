@@ -38,7 +38,7 @@ from ovos_utils import create_daemon
 from neon_utils.metrics_utils import Stopwatch
 from neon_utils.socket_utils import b64_to_dict
 from ovos_config.config import Configuration
-from neon_mq_connector.connector import MQConnector
+from neon_mq_connector.connector import MQConnector, ConsumerThreadInstance
 from pika.channel import Channel
 from pydantic import ValidationError
 
@@ -81,6 +81,15 @@ class ChatAPIProxy(MQConnector):
             NeonResponseTypes.TTS: 60,
             NeonResponseTypes.STT: 60
         }
+
+    @staticmethod
+    def default_error_handler(thread: ConsumerThreadInstance,
+                              exception: Exception):
+        LOG.exception(f"{exception} occurred in {thread}")
+        if isinstance(exception, pika.exceptions.AMQPError):
+            LOG.info("Raising exception to exit")
+            # This is a fatal error; raise it so this object can be re-created
+            raise exception
 
     def register_bus_handlers(self):
         """Convenience method to gather message bus handlers"""
@@ -241,19 +250,19 @@ class ChatAPIProxy(MQConnector):
                           "neon.languages.skills", "neon.languages.get"):
             # These have no expected data
             return "", msg_data
-        elif msg_data.get("context", {}).get("request_skills"):
-            # TODO: This context isn't referenced anywhere in core. Deprecate?
-            LOG.warning(f"Unknown input message type: {msg_type}")
-            requested_templates = msg_data["context"]["request_skills"]
-            message_templates = []
+        # elif msg_data.get("context", {}).get("request_skills"):
+        #     # TODO: This context isn't referenced anywhere in core. Deprecate?
+        #     LOG.warning(f"Unknown input message type: {msg_type}")
+        #     requested_templates = msg_data["context"]["request_skills"]
+        #     message_templates = []
 
-            for requested_template in requested_templates:
-                matching_template_model = templates.get(requested_template)
-                if not matching_template_model:
-                    LOG.warning(f'Template under keyword '
-                                f'"{requested_template}" does not exist')
-                else:
-                    message_templates.append(matching_template_model)
+        #     for requested_template in requested_templates:
+        #         matching_template_model = templates.get(requested_template)
+        #         if not matching_template_model:
+        #             LOG.warning(f'Template under keyword '
+        #                         f'"{requested_template}" does not exist')
+        #         else:
+        #             message_templates.append(matching_template_model)
         else:
             LOG.warning(f"Handling arbitrary message: {msg_type}")
             message_templates = [templates.get('message')]
