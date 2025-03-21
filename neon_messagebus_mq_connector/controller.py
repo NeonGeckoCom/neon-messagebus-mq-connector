@@ -137,7 +137,9 @@ class ChatAPIProxy(MQConnector):
 
         with Stopwatch() as _stopwatch:
             try:
-                response_message = NeonApiMessage(**message.as_dict)
+                response_message = NeonApiMessage(msg_type=message.msg_type,
+                                                  data=message.data,
+                                                  context=message.context)
             except ValidationError as e:
                 LOG.info(f"message={message}")
                 LOG.error(f"Failed to parse response message: {e}")
