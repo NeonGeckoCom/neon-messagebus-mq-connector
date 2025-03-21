@@ -135,7 +135,7 @@ class ChatAPIProxy(MQConnector):
         """
         response_handled = time.time()
 
-        with _stopwatch := Stopwatch():
+        with Stopwatch() as _stopwatch:
             try:
                 response_message = NeonApiMessage(message.as_dict())
             except ValidationError as e:
