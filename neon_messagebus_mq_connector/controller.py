@@ -143,8 +143,9 @@ class ChatAPIProxy(MQConnector):
                 response_message.routing_key = response_message.routing_key or \
                     "neon_chat_api_response"
             except ValidationError as e:
-                LOG.info(f"message={message}")
-                LOG.error(f"Failed to parse response message: {e}")
+                if message.context.get("mq"):
+                    LOG.info(f"message={message}")
+                    LOG.error(f"Failed to parse response message: {e}")
                 return
 
         LOG.debug(f'Processed neon response: {message.msg_type} in '
