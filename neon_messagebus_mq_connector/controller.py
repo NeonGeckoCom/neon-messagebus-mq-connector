@@ -214,6 +214,7 @@ class ChatAPIProxy(MQConnector):
             response = Message("klat.error", {"error": repr(e),
                                               "data": dict_data},
                                context)
+            response.context.setdefault("klat_data", {})
             response.context['klat_data'].setdefault('routing_key',
                                                      'neon_chat_api_error')
             self.handle_neon_message(response)
