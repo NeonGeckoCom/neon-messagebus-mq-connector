@@ -28,7 +28,8 @@
 
 
 from ovos_utils.log import log_deprecation
-from neon_data_models.models.messagebus import BaseMessage as MessageModel, \
+from neon_data_models.models.base.messagebus import \
+    BaseMessage as MessageModel, \
     NeonTextInput as RecognizerMessage, NeonGetStt as STTMessage, \
     NeonGetTts as TTSMessage, NeonAudioInput as AudioInput
 
