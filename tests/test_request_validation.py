@@ -31,11 +31,7 @@ import unittest
 from copy import deepcopy
 from pydantic import ValidationError
 
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.dirname(os.path.realpath(__file__))+"/../neon_messagebus_mq_connector"))
-
-from messages import STTMessage, TTSMessage
+from neon_messagebus_mq_connector.messages import STTMessage, TTSMessage
 
 
 class RequestTests(unittest.TestCase):
@@ -65,7 +61,8 @@ class RequestTests(unittest.TestCase):
             timing={"1": "1"},
             neon_should_respond=False,
             username="1",
-            klat_data={"1": "1"},
+            klat_data={"sid": "1",
+                       "cid": "1"},
             user_profiles=[{"1": "1"}]
         )
     )
