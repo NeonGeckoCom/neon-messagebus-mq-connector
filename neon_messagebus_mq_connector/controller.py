@@ -207,6 +207,10 @@ class ChatAPIProxy(MQConnector):
             f'data={dict_data["data"].keys()}|'
             f'context={dict_data["context"].keys()}')
         try:
+            # TODO: Klat context is currently required for audio responses. In
+            # the future, these should be handled for any response with `MQ`
+            # context.
+            dict_data['context'].setdefault('klat_data', {"cid": "", "sid": ""})
             neon_api_message = NeonApiMessage(**dict_data)
         except ValidationError as e:
             LOG.error(e)
