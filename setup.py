@@ -60,6 +60,9 @@ setuptools.setup(
     author_email='developers@neon.ai',
     license='BSD-3-Clause',
     description="MQ-Messagebus Connector Module",
+    extras_require={
+        "test": get_requirements("dev_requirements.txt")
+    },
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/neongeckocom/neon-messagebus-mq-connector",

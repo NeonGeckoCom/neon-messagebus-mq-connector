@@ -27,87 +27,16 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from typing import List
-from pydantic import BaseModel as PydanticBaseModel, create_model
+from ovos_utils.log import log_deprecation
+from neon_data_models.models.base.messagebus import \
+    BaseMessage as MessageModel
+from neon_data_models.models.api.messagebus import \
+    NeonTextInput as RecognizerMessage, NeonGetStt as STTMessage, \
+    NeonGetTts as TTSMessage, NeonAudioInput as AudioInput
 
 
-class BaseModel(PydanticBaseModel):
-    class Config:
-        extra = "allow"
-
-
-class MessageModel(BaseModel):
-    msg_type: str
-    data: dict
-    context: dict
-
-
-class RecognizerMessage(BaseModel):
-    msg_type: str = "recognizer_loop:utterance"
-    data: create_model("Data",
-                       utterances=(list, ...),
-                       lang=(str, ...),
-                       __base__=BaseModel,
-                       )
-    context: create_model("Context",
-                          client_name=(str, "pyklatchat"),
-                          client=(str, "browser"),
-                          source=(str, "mq_api"),
-                          destination=(list, ["skills"]),
-                          timing=(dict, {}),
-                          neon_should_respond=(bool, True),
-                          username=(str, "guest"),
-                          klat_data=(dict, {}),
-                          mq=(dict, None),
-                          user_profiles=(list, []),
-                          request_skills=(List[str], None),
-                          __base__=BaseModel,
-                          )
-
-
-class AudioInput(BaseModel):
-    msg_type: str = "neon.audio_input"
-    data: create_model("Data",
-                       audio_data=(str, ...),
-                       lang=(str, ...),
-                       __base__=BaseModel,
-                       )
-    context: create_model("Context",
-                          source=(str, "mq_api"),
-                          destination=(list, ["speech"]),
-                          username=(str, "guest"),
-                          user_profiles=(list, []),
-                          __base__=BaseModel,
-                          )
-
-
-class STTMessage(BaseModel):
-    msg_type: str = "neon.get_stt"
-    data: create_model("Data",
-                       audio_data=(str, ...),
-                       lang=(str, ...),
-                       __base__=BaseModel,
-                       )
-    context: create_model("Context",
-                          source=(str, "mq_api"),
-                          destination=(list, ["speech"]),
-                          __base__=BaseModel,
-                          )
-
-
-class TTSMessage(BaseModel):
-    msg_type: str = "neon.get_tts"
-    data: create_model("Data",
-                       text=(str, ...),
-                       lang=(str, ...),
-                       __base__=BaseModel,
-                       )
-    context: create_model("Context",
-                          source=(str, "mq_api"),
-                          destination=(list, ["audio"]),
-                          __base__=BaseModel,
-                          )
-
+log_deprecation("Import from `neon_data_models.models.messagebus` directly",
+                "2.0.0")
 
 templates = {
     "stt": STTMessage,
