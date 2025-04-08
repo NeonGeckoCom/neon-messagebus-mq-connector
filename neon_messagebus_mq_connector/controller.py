@@ -256,7 +256,7 @@ class ChatAPIProxy(MQConnector):
 
         _stopwatch.stop()
         neon_api_message.context.timing.mq_input_handler = _stopwatch.time
-        message = neon_api_message.as_message()
+        message = neon_api_message.as_messagebus_message()
         if message.context.get('ident') and \
                 message.msg_type in ("neon.get_stt", "neon.get_tts",
                                         "neon.audio_input"):
