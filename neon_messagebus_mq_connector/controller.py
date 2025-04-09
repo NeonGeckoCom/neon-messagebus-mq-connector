@@ -147,6 +147,9 @@ class ChatAPIProxy(MQConnector):
                     LOG.info(f"message={message}")
                     LOG.error(f"Failed to parse response message: {e}")
                 return
+            except TypeError as e:
+                LOG.error(f"Failed to parse message: {message.serialize()}")
+                LOG.exception(e)
 
         LOG.debug(f'Processed neon response: {message.msg_type} in '
                   f'{_stopwatch.time}s')
