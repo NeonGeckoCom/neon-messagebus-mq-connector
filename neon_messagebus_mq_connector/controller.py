@@ -150,6 +150,7 @@ class ChatAPIProxy(MQConnector):
             except TypeError as e:
                 LOG.error(f"Failed to parse message: {message.serialize()}")
                 LOG.exception(e)
+                return
 
         LOG.debug(f'Processed neon response: {message.msg_type} in '
                   f'{_stopwatch.time}s')
@@ -231,11 +232,10 @@ class ChatAPIProxy(MQConnector):
         dict_data = b64_to_dict(body)
         LOG.info(f'Received user message: {dict_data.get("msg_type")}|'
             f'data={dict_data["data"].keys()}|'
-            f'context={dict_data["context"].keys()}')
+            f'context={dict_data["context"].keys()}|{dict_data.keys()}')
         try:
-            # TODO: Klat context is currently required for audio responses. In
-            # the future, these should be handled for any response with `MQ`
-            # context.
+            # TODO: Klat context was previously required for audio responses.
+            # These are now handled for any response with `MQ` context.
             dict_data['context'].setdefault('klat_data', {"cid": "", "sid": ""})
             neon_api_message = NeonApiMessage(**dict_data)
         except ValidationError as e:
