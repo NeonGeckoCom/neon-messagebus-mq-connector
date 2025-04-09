@@ -233,7 +233,7 @@ class ChatAPIProxy(MQConnector):
         dict_data = b64_to_dict(body)
         LOG.info(f'Received user message: {dict_data.get("msg_type")}|'
             f'data={dict_data["data"].keys()}|'
-            f'context={dict_data["context"].keys()}|{dict_data.keys()}')
+            f'context={dict_data["context"].keys()}')
         try:
             # TODO: Klat context was previously required for audio responses.
             # These are now handled for any response with `MQ` context.
@@ -241,6 +241,9 @@ class ChatAPIProxy(MQConnector):
             neon_api_message = NeonApiMessage(**dict_data)
             if not neon_api_message.context.mq:
                 # backwards-compat parsing
+                LOG.warning(f"Handling legacy message from "
+                            f"client={neon_api_message.context.client}. Please "
+                            f"update to include `mq` context")
                 neon_api_message.context.mq = MQContext(**dict_data)
 
         except ValidationError as e:
