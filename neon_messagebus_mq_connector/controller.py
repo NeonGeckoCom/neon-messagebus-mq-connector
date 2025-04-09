@@ -39,6 +39,7 @@ from ovos_config.config import Configuration
 from neon_mq_connector.connector import MQConnector, ConsumerThreadInstance
 from pydantic import ValidationError
 from neon_data_models.models.api.mq.neon import NeonApiMessage
+from neon_data_models.models.base.contexts import MQContext
 from neon_messagebus_mq_connector.enums import NeonResponseTypes
 
 
@@ -238,6 +239,10 @@ class ChatAPIProxy(MQConnector):
             # These are now handled for any response with `MQ` context.
             dict_data['context'].setdefault('klat_data', {"cid": "", "sid": ""})
             neon_api_message = NeonApiMessage(**dict_data)
+            if not neon_api_message.context.mq:
+                # backwards-compat parsing
+                neon_api_message.context.mq = MQContext(**dict_data)
+
         except ValidationError as e:
             LOG.error(e)
             # This Message is malformed
