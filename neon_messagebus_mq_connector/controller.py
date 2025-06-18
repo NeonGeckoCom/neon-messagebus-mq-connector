@@ -68,14 +68,14 @@ class ChatAPIProxy(MQConnector):
                                callback=self.handle_user_message,
                                on_error=error_callback,
                                auto_ack=False,
-                               restart_attempts=-1)
+                               restart_attempts=0)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_chat_api_request',
                                callback=self.handle_user_message,
                                on_error=error_callback,
                                auto_ack=False,
-                               restart_attempts=-1)
+                               restart_attempts=0)
         self.response_timeouts = {
             NeonResponseTypes.TTS: 60,
             NeonResponseTypes.STT: 60
