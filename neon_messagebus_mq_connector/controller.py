@@ -29,6 +29,7 @@
 import time
 import pika
 
+from typing import Optional
 from ovos_bus_client.client import MessageBusClient
 from ovos_bus_client.message import Message
 from ovos_utils.log import LOG, log_deprecation
@@ -48,7 +49,7 @@ class ChatAPIProxy(MQConnector):
     Proxy module for establishing connection between Neon Core and an MQ Broker
     """
 
-    def __init__(self, config: dict, service_name: str):
+    def __init__(self, config: dict, service_name: str, error_callback: Optional[callable] = None):
         config = config or Configuration()
         mq_config = config.get("MQ", config)
         super().__init__(mq_config, service_name)
@@ -60,33 +61,25 @@ class ChatAPIProxy(MQConnector):
         self._vhost = '/neon_chat_api'
         self._bus = None
         self.connect_bus()
+        error_callback = error_callback or self.default_error_handler
         self.register_consumer(name=f'neon_api_request_{self.service_id}',
                                vhost=self.vhost,
                                queue=f'neon_chat_api_request_{self.service_id}',
                                callback=self.handle_user_message,
-                               on_error=self.default_error_handler,
+                               on_error=error_callback,
                                auto_ack=False,
                                restart_attempts=-1)
         self.register_consumer(name='neon_request_consumer',
                                vhost=self.vhost,
                                queue='neon_chat_api_request',
                                callback=self.handle_user_message,
-                               on_error=self.default_error_handler,
+                               on_error=error_callback,
                                auto_ack=False,
                                restart_attempts=-1)
         self.response_timeouts = {
             NeonResponseTypes.TTS: 60,
             NeonResponseTypes.STT: 60
         }
-
-    @staticmethod
-    def default_error_handler(thread: ConsumerThreadInstance,
-                              exception: Exception):
-        LOG.exception(f"{exception} occurred in {thread}")
-        if isinstance(exception, pika.exceptions.AMQPError):
-            LOG.info("Raising exception to exit")
-            # This is a fatal error; raise it so this object can be re-created
-            raise exception
 
     def register_bus_handlers(self):
         """Convenience method to gather message bus handlers"""
