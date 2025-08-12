@@ -262,10 +262,9 @@ class ChatAPIProxy(MQConnector):
         _stopwatch.stop()
         neon_api_message.context.timing.mq_input_handler = _stopwatch.time
         message = neon_api_message.as_messagebus_message()
-        # TODO: Also handle Skill API requests here
         if message.context.get('ident') and \
                 message.msg_type in ("neon.get_stt", "neon.get_tts",
-                                        "neon.audio_input"):
+                                     "neon.audio_input"):
             # If there's an ident in context, API methods will emit that.
             # This isn't explicitly defined but this pattern is often used
             # to associate responses with the original request.
@@ -274,6 +273,13 @@ class ChatAPIProxy(MQConnector):
             # `neon-data-models` will not send an `ident` key
             create_daemon(self._get_messagebus_response, args=(message,),
                             autostart=True)
+        elif neon_api_message.msg_type in ("neon.skill_api.query"):
+            # The Skill API uses arbitrary message types; this translation 
+            # allows for a simplified MQ API that maps onto the Messagebus
+            # per-method Message types.
+            response_msg_type = f"{message.msg_type}.response"
+            create_daemon(self.get_messagebus_response, args=(message, response_msg_type),
+                          autostart=True)
         else:
             # No ident means we'll get a plain `msg_type.response` which has
             # a handler already registered. `wait_for_response` is not used
@@ -282,14 +288,16 @@ class ChatAPIProxy(MQConnector):
             self.bus.emit(message)
         LOG.debug(f"Handler Complete in {time.time() - input_received}s")
 
-    def _get_messagebus_response(self, message: Message):
+    def _get_messagebus_response(self, message: Message, 
+                                 response_type: Optional[str] = None):
         """
         Helper method to get a response on the Messagebus that can be threaded
         so as not to block MQ handling.
         @param message: Message object to get a response for
         """
+        response_type = response_type or message.context['ident']
         resp = self.bus.wait_for_response(message,
-                                          message.context['ident'], 30)
+                                          response_type, 30)
         if resp:
             # Override msg_type for handler; context contains routing
             resp.msg_type = f"{message.msg_type}.response"
