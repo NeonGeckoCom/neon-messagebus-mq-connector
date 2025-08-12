@@ -96,6 +96,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('neon.languages.skills.response', self.handle_neon_message)
         self._bus.on('neon.languages.get.response', self.handle_neon_message)
         self._bus.on('neon.alert_expired', self.handle_neon_message)
+        self._bus.on('neon.skill_api.get.response', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
@@ -261,6 +262,7 @@ class ChatAPIProxy(MQConnector):
         _stopwatch.stop()
         neon_api_message.context.timing.mq_input_handler = _stopwatch.time
         message = neon_api_message.as_messagebus_message()
+        # TODO: Also handle Skill API requests here
         if message.context.get('ident') and \
                 message.msg_type in ("neon.get_stt", "neon.get_tts",
                                         "neon.audio_input"):
