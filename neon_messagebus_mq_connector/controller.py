@@ -273,12 +273,12 @@ class ChatAPIProxy(MQConnector):
             # `neon-data-models` will not send an `ident` key
             create_daemon(self._get_messagebus_response, args=(message,),
                             autostart=True)
-        elif neon_api_message.msg_type in ("neon.skill_api.query"):
+        elif neon_api_message.msg_type in ("neon.skill_api.call"):
             # The Skill API uses arbitrary message types; this translation 
             # allows for a simplified MQ API that maps onto the Messagebus
             # per-method Message types.
             response_msg_type = f"{message.msg_type}.response"
-            create_daemon(self.get_messagebus_response, args=(message, response_msg_type),
+            create_daemon(self._get_messagebus_response, args=(message, response_msg_type),
                           autostart=True)
         else:
             # No ident means we'll get a plain `msg_type.response` which has
