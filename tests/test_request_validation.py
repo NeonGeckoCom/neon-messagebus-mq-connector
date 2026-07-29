@@ -31,6 +31,7 @@ import unittest
 from copy import deepcopy
 from pydantic import ValidationError
 
+from neon_data_models.models.api.mq.neon import NeonApiMessage
 from neon_messagebus_mq_connector.messages import STTMessage, TTSMessage
 
 
@@ -109,3 +110,41 @@ class RequestTests(unittest.TestCase):
 
         # self.assertEqual(dict_keys["context"]["neon_should_respond"], True)
         self.assertEqual(dict_keys["context"]["destination"], ['audio'])
+
+
+class NodeInvokeNativeTests(unittest.TestCase):
+    """`node.invoke_native` is forwarded by the generic handle_neon_message,
+    so it has no message class of its own -- these pin the two properties
+    that forwarding depends on."""
+
+    default_invoke = dict(
+        msg_type="node.invoke_native",
+        data=dict(action="launch_camera_app"),
+        context=dict(
+            mq={"routing_key": "node_a1b2c3d4"},
+            session={"session_id": "node-a1b2c3d4"},
+        ),
+    )
+
+    def test_invoke_native_validates(self):
+        message = NeonApiMessage(**deepcopy(self.default_invoke))
+        self.assertEqual(message.msg_type, "node.invoke_native")
+        self.assertEqual(message.data["action"], "launch_camera_app")
+
+    def test_routing_key_is_read_from_context(self):
+        """The Node is unicast by routing_key. If this fell back to the
+        shared neon_chat_api_response queue, one Node's camera intent
+        would be delivered to every connected client."""
+        message = NeonApiMessage(**deepcopy(self.default_invoke))
+        self.assertEqual(message.routing_key, "node_a1b2c3d4")
+
+    def test_params_payload_survives(self):
+        """`params` is an open object per PLATFORM_NATIVE_ACTIONS.md, so
+        the messaging actions' pre-fill must pass through untouched."""
+        keys = deepcopy(self.default_invoke)
+        keys["data"] = dict(
+            action="launch_email_app",
+            params=dict(subject="Running late", body="Be there soon"),
+        )
+        message = NeonApiMessage(**keys)
+        self.assertEqual(message.data["params"]["subject"], "Running late")

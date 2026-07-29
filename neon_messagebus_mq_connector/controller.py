@@ -97,6 +97,7 @@ class ChatAPIProxy(MQConnector):
         self._bus.on('neon.languages.get.response', self.handle_neon_message)
         self._bus.on('neon.alert_expired', self.handle_neon_message)
         self._bus.on('neon.skill_api.get.response', self.handle_neon_message)
+        self._bus.on('node.invoke_native', self.handle_neon_message)
 
     def connect_bus(self, refresh: bool = False):
         """
